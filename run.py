@@ -87,7 +87,7 @@ def get_venv_pip(venv_dir):
 
 def install_packages(venv_dir):
     """Install required packages in virtual environment"""
-    print_colored("\n📦 Installing required packages...", Colors.BLUE)
+    print_colored("\n📦 Checking required packages...", Colors.BLUE)
 
     base_dir = Path(__file__).parent
     requirements_file = base_dir / 'requirements.txt'
@@ -99,22 +99,14 @@ def install_packages(venv_dir):
     pip_path = get_venv_pip(venv_dir)
 
     try:
-        # Upgrade pip first
-        print_colored("   ⬆️  Upgrading pip...", Colors.YELLOW)
-        subprocess.check_call(
-            [str(pip_path), 'install', '--upgrade', 'pip'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-
-        # Install packages
-        print_colored("   📥 Installing dependencies...", Colors.YELLOW)
+        # Install packages only (no pip upgrade)
+        print_colored("   📥 Installing missing dependencies...", Colors.YELLOW)
         subprocess.check_call(
             [str(pip_path), 'install', '-q', '-r', str(requirements_file)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE
         )
-        print_colored("   ✅ All packages installed successfully", Colors.GREEN)
+        print_colored("   ✅ All packages ready", Colors.GREEN)
         return True
     except subprocess.CalledProcessError as e:
         print_colored(f"   ❌ Error installing packages: {e}", Colors.RED)
