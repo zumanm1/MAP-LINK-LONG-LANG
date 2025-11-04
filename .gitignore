@@ -40,9 +40,10 @@ env/
 .coverage
 htmlcov/
 
-# Excel files (except test files)
+# Excel files (except test_input.xlsx)
 *.xlsx
 !test_input.xlsx
+test_output.xlsx
 
 # OS
 .DS_Store
