@@ -301,11 +301,36 @@ def process_excel_file(input_file: str, output_file: str) -> None:
         logger.info(f"Saving output file: {output_file}")
         df.to_excel(output_file, index=False)
         logger.info("Processing complete!")
-        
+
         # Display summary
         successful = df[[long_column, lat_column]].notna().all(axis=1).sum()
         total = len(df)
         logger.info(f"Summary: Successfully processed {successful}/{total} rows")
+
+        # Generate separate files for failed and skipped rows
+        from pathlib import Path
+        output_path = Path(output_file)
+        output_stem = output_path.stem
+        output_dir = output_path.parent
+        output_ext = output_path.suffix
+
+        # Filter failed rows (rows with Comments starting with "Failed")
+        failed_df = df[df['Comments'].str.startswith('Failed', na=False)]
+        if len(failed_df) > 0:
+            failed_file = output_dir / f"{output_stem}_failed{output_ext}"
+            failed_df.to_excel(failed_file, index=False)
+            logger.info(f"✅ Saved {len(failed_df)} failed rows to: {failed_file}")
+        else:
+            logger.info("✅ No failed rows - skipping failed file")
+
+        # Filter skipped rows (rows with Comments starting with "Skipped")
+        skipped_df = df[df['Comments'].str.startswith('Skipped', na=False)]
+        if len(skipped_df) > 0:
+            skipped_file = output_dir / f"{output_stem}_skipped{output_ext}"
+            skipped_df.to_excel(skipped_file, index=False)
+            logger.info(f"✅ Saved {len(skipped_df)} skipped rows to: {skipped_file}")
+        else:
+            logger.info("✅ No skipped rows - skipping skipped file")
         
     except FileNotFoundError as e:
         logger.error(f"Input file not found: {input_file}")
