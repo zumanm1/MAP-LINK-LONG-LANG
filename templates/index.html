@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🗺️ Map Coordinates Converter</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🗺️ Excel Map Coordinates Converter</h1>
+            <p class="subtitle">Upload an Excel file with map links and download it with extracted longitude and latitude coordinates.<br>
+            No API keys required - processes Google Maps URLs directly.</p>
+        </header>
+
+        <!-- File Upload Section -->
+        <section class="upload-section">
+            <div class="file-upload-wrapper">
+                <input type="file" id="fileInput" accept=".xlsx" style="display: none;">
+                <button id="uploadBtn" class="btn btn-upload">
+                    📁 Upload Excel file (.xlsx)
+                </button>
+                <span id="fileName" class="file-name"></span>
+            </div>
+            <p class="help-text">File must contain 'Name', 'Region', and either 'Map link' or 'Maps' columns</p>
+        </section>
+
+        <!-- Error Messages -->
+        <div id="errorMessage" class="alert alert-error" style="display: none;"></div>
+
+        <!-- Preview Section -->
+        <section id="previewSection" style="display: none;">
+            <h2>📄 Input File Preview</h2>
+            <div class="table-wrapper">
+                <table id="previewTable" class="data-table">
+                    <thead id="previewTableHead"></thead>
+                    <tbody id="previewTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Process Button -->
+            <button id="processBtn" class="btn btn-primary">
+                🔄 Extract Coordinates
+            </button>
+        </section>
+
+        <!-- Progress Section -->
+        <section id="progressSection" style="display: none;">
+            <div class="progress-wrapper">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <p id="progressText" class="progress-text"></p>
+            </div>
+        </section>
+
+        <!-- Success Messages -->
+        <div id="successMessage" class="alert alert-success" style="display: none;"></div>
+        <div id="warningMessage" class="alert alert-warning" style="display: none;"></div>
+
+        <!-- Results Section -->
+        <section id="resultsSection" style="display: none;">
+            <h2>📊 Processed Data</h2>
+            <div class="table-wrapper">
+                <table id="resultsTable" class="data-table">
+                    <thead id="resultsTableHead"></thead>
+                    <tbody id="resultsTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Download Button -->
+            <button id="downloadBtn" class="btn btn-download">
+                ⬇️ Download Processed File
+            </button>
+
+            <!-- Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Rows</div>
+                    <div id="statTotal" class="stat-value">0</div>
+                </div>
+                <div class="stat-card stat-success">
+                    <div class="stat-label">Successful</div>
+                    <div id="statSuccess" class="stat-value">0</div>
+                </div>
+                <div class="stat-card stat-failed">
+                    <div class="stat-label">Failed</div>
+                    <div id="statFailed" class="stat-value">0</div>
+                </div>
+                <div class="stat-card stat-skipped">
+                    <div class="stat-label">Skipped</div>
+                    <div id="statSkipped" class="stat-value">0</div>
+                </div>
+            </div>
+
+            <!-- Processing Log -->
+            <div id="processingLogSection" style="display: none;">
+                <h3>📋 Processing Details</h3>
+                <div class="log-container">
+                    <div id="processingLog"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Instructions Section (shown when no file uploaded) -->
+        <section id="instructionsSection">
+            <div class="info-box">
+                <p>👆 Please upload an Excel file to get started</p>
+            </div>
+
+            <h3>📋 Requirements</h3>
+            <div class="requirements-box">
+                <p>Your Excel file must contain:</p>
+                <ul>
+                    <li><strong>Name</strong>: Site or location name</li>
+                    <li><strong>Region</strong>: Geographic region</li>
+                    <li><strong>Map link</strong> or <strong>Maps</strong>: URL to the map location</li>
+                    <li><strong>Long</strong> or <strong>LONG</strong>: (Optional) Longitude column - will be populated</li>
+                    <li><strong>Latts</strong> or <strong>LATTs</strong>: (Optional) Latitude column - will be populated</li>
+                </ul>
+            </div>
+
+            <h3>🔗 Supported URL Formats</h3>
+            <div class="requirements-box">
+                <ul>
+                    <li><code>https://www.google.com/maps/place/Location/@LAT,LNG,17z</code></li>
+                    <li><code>https://www.google.com/maps?q=LAT,LNG</code></li>
+                    <li><code>https://maps.app.goo.gl/...</code> (shortened URLs)</li>
+                    <li>Direct coordinate pairs: <code>LAT,LNG</code></li>
+                </ul>
+            </div>
+
+            <h3>📝 Example</h3>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Region</th>
+                            <th>Maps</th>
+                            <th>LONG</th>
+                            <th>LATTs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Sandton City</td>
+                            <td>Johannesburg</td>
+                            <td>https://maps.app.goo.gl/baixEU9UxYHX8Yox7</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

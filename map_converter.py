@@ -34,11 +34,20 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
         return None, None
     
     try:
+        # If it's a shortened URL (goo.gl or maps.app.goo.gl), resolve it first
+        if 'goo.gl' in map_link or 'maps.app.goo.gl' in map_link:
+            try:
+                response = requests.head(map_link, allow_redirects=True, timeout=10)
+                map_link = response.url
+                logger.debug(f"Resolved shortened URL to: {map_link}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve shortened URL: {str(e)}")
+        
         # Google Maps formats:
         # 1. https://www.google.com/maps/place/Location/@-26.108204,28.0527061,17z
         # 2. https://www.google.com/maps?q=-26.108204,28.0527061
         # 3. https://maps.google.com/?q=-26.108204,28.0527061
-        # 4. https://goo.gl/maps/... (shortened)
+        # 4. https://goo.gl/maps/... (shortened, resolved above)
         
         # Pattern 1: @lat,lng format
         pattern1 = r'@(-?\d+\.\d+),(-?\d+\.\d+)'
@@ -94,27 +103,40 @@ def process_excel_file(input_file: str, output_file: str) -> None:
         logger.info(f"Reading input file: {input_file}")
         df = pd.read_excel(input_file)
         
-        # Validate required columns
-        required_columns = ['Name', 'Region', 'Map link']
+        # Validate required columns (support both naming conventions)
+        # Check for 'Map link' or 'Maps'
+        map_column = None
+        if 'Map link' in df.columns:
+            map_column = 'Map link'
+        elif 'Maps' in df.columns:
+            map_column = 'Maps'
+        else:
+            raise ValueError("Missing required map column: 'Map link' or 'Maps'")
+        
+        required_columns = ['Name', 'Region']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
         
-        # Initialize Long and Latts columns if they don't exist
-        if 'Long' not in df.columns:
-            df['Long'] = None
-        if 'Latts' not in df.columns:
-            df['Latts'] = None
+        # Determine longitude column name (Long or LONG)
+        long_column = 'Long' if 'Long' in df.columns else 'LONG'
+        if long_column not in df.columns:
+            df[long_column] = None
+        
+        # Determine latitude column name (Latts or LATTs)
+        lat_column = 'Latts' if 'Latts' in df.columns else 'LATTs'
+        if lat_column not in df.columns:
+            df[lat_column] = None
         
         # Process each row
         logger.info(f"Processing {len(df)} rows...")
         for idx, row in df.iterrows():
-            map_link = row['Map link']
+            map_link = row[map_column]
             if pd.notna(map_link):
                 lng, lat = extract_coordinates_from_url(str(map_link))
                 if lng is not None and lat is not None:
-                    df.at[idx, 'Long'] = lng
-                    df.at[idx, 'Latts'] = lat
+                    df.at[idx, long_column] = lng
+                    df.at[idx, lat_column] = lat
                     logger.info(f"Row {idx + 1} ({row['Name']}): Extracted coordinates - Lng: {lng}, Lat: {lat}")
                 else:
                     logger.warning(f"Row {idx + 1} ({row['Name']}): Failed to extract coordinates")
@@ -127,7 +149,7 @@ def process_excel_file(input_file: str, output_file: str) -> None:
         logger.info("Processing complete!")
         
         # Display summary
-        successful = df[['Long', 'Latts']].notna().all(axis=1).sum()
+        successful = df[[long_column, lat_column]].notna().all(axis=1).sum()
         total = len(df)
         logger.info(f"Summary: Successfully processed {successful}/{total} rows")
         

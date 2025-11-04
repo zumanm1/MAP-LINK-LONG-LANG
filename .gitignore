@@ -50,3 +50,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Flask
+uploads/
+processed/
+instance/
+.webassets-cache
+
+# Streamlit
+.streamlit/
