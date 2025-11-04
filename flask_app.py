@@ -320,7 +320,7 @@ def process_file(session_id):
             # Retry logic: Try up to 3 times with 2 second delay
             MAX_ATTEMPTS = 3
             RETRY_DELAY = 2
-            URL_TIMEOUT = 120  # 2 minutes timeout per attempt
+            URL_TIMEOUT = 180  # 3 minutes timeout per attempt (REDUCED to prevent getting stuck)
             lng, lat = None, None
             last_error = None
 
