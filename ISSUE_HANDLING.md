@@ -21,20 +21,51 @@ The script is designed to **continue processing** even when encountering issues.
 
 ## 📊 TEST FILE: test_issues_input.xlsx
 
-Created a comprehensive test file with various issues:
+Created a comprehensive test file with **20 rows** containing realistic messy data:
+
+### Name Column Variations (Mixed Alphanumeric, Caps, Special Characters):
+
+- **Normal Capitalized**: "Sandton City Mall"
+- **ALL CAPS**: "CAPE TOWN CBD"
+- **all lowercase**: "durban beachfront"
+- **Hyphen + numbers**: "Pretoria-East 123"
+- **Parentheses**: "Bloemfontein (Central)"
+- **Slash**: "Port Elizabeth / PE"
+- **Starting with number**: "N1 City Mall"
+- **Multiple elements**: "Johannesburg CBD - 2nd Floor"
+- **Ampersand**: "Polokwane R37 & R71"
+- **Colon**: "Kimberley: Big Hole"
+- **@ symbol**: "Midrand @ Waterfall"
+- **Hash/number**: "Centurion Mall #205"
+- **Comma**: "Sandton, Gauteng"
+- **Mixed case**: "DURBAN uMhlanga Ridge"
+- **African names**: "uMhlanga Ridge"
+- **Abbreviations**: "PE Central", "Ext. 7", "V&A"
+
+### Test Cases:
 
 | Row | Name | Issue Type | Expected Behavior |
 |-----|------|------------|-------------------|
-| 1 | Sandton City | ✅ Valid URL | Extract coordinates |
-| 2 | Cape Town | ✅ Valid URL | Extract coordinates |
-| 3 | Durban | ❌ Missing map link (None) | Skip row |
-| 4 | Pretoria | ❌ Empty string map link | Skip row |
-| 5 | Bloemfontein | ❌ Invalid URL format | Fail gracefully, continue |
-| 6 | Port Elizabeth | ✅ Valid URL | Extract coordinates |
-| 7 | (empty) | ✅ Valid URL, empty name | Extract coordinates |
-| 8 | East London | ✅ Valid URL with whitespace | Extract coordinates |
-| 9 | Polokwane | ✅ Google Maps place URL | Extract coordinates |
-| 10 | Kimberley | ⚠️ Shortened goo.gl URL | Fail gracefully, continue |
+| 1 | Sandton City Mall | ✅ Valid URL | Extract coordinates |
+| 2 | CAPE TOWN CBD | ✅ Valid URL (ALL CAPS name) | Extract coordinates |
+| 3 | durban beachfront | ❌ Missing map link (lowercase name) | Skip row |
+| 4 | Pretoria-East 123 | ✅ Valid URL (hyphen + number) | Extract coordinates |
+| 5 | Bloemfontein (Central) | ❌ Invalid URL (parentheses in name) | Fail gracefully |
+| 6 | Port Elizabeth / PE | ✅ Valid URL (slash in name) | Extract coordinates |
+| 7 | N1 City Mall | ✅ Valid URL (starts with number) | Extract coordinates |
+| 8 | East London - 5th Avenue | ✅ Valid URL (ordinal number) | Extract coordinates |
+| 9 | Polokwane R37 & R71 | ✅ Valid URL (ampersand + numbers) | Extract coordinates |
+| 10 | Kimberley: Big Hole | ❌ Empty string map link (colon) | Skip row |
+| 11 | Johannesburg CBD - 2nd Floor | ✅ Valid URL (complex name) | Extract coordinates |
+| 12 | Cape Town V&A Waterfront | ✅ Valid URL (abbreviation) | Extract coordinates |
+| 13 | DURBAN uMhlanga Ridge | ✅ Valid URL (mixed case) | Extract coordinates |
+| 14 | Pretoria Menlyn Park | ✅ Valid URL | Extract coordinates |
+| 15 | Orange Farm Ext. 7 | ✅ Valid URL (abbreviation) | Extract coordinates |
+| 16 | Soweto - Orlando West | ✅ Valid URL (dash) | Extract coordinates |
+| 17 | Midrand @ Waterfall | ✅ Valid URL (@ symbol) | Extract coordinates |
+| 18 | Centurion Mall #205 | ✅ Valid URL (hash + number) | Extract coordinates |
+| 19 | Sandton, Gauteng | ✅ Valid URL (comma) | Extract coordinates |
+| 20 | PE Central | ⚠️ Shortened goo.gl URL | Fail gracefully |
 
 ---
 
@@ -44,40 +75,60 @@ Created a comprehensive test file with various issues:
 
 ```
 INFO - Reading input file: test_issues_input.xlsx
-INFO - Processing 10 rows...
+INFO - Processing 20 rows...
 
-✅ Row 1 (Sandton City): Extracted coordinates - Lng: 28.0567, Lat: -26.1076
-✅ Row 2 (Cape Town): Extracted coordinates - Lng: 18.4241, Lat: -33.9249
-⏭️  Row 3 (Durban): No map link provided
-⏭️  Row 4 (Pretoria): No map link provided
-❌ Row 5 (Bloemfontein): Failed to extract coordinates
-✅ Row 6 (Port Elizabeth): Extracted coordinates - Lng: 25.6022, Lat: -33.9608
-✅ Row 7 (empty name): Extracted coordinates - Lng: 28.0473, Lat: -26.2041
-✅ Row 8 (East London): Extracted coordinates - Lng: 27.8708, Lat: -32.9783
-✅ Row 9 (Polokwane): Extracted coordinates - Lng: 29.4689, Lat: -23.9045
-❌ Row 10 (Kimberley): Failed to extract coordinates
+✅ Row 1 (Sandton City Mall): Extracted coordinates - Lng: 28.0567, Lat: -26.1076
+✅ Row 2 (CAPE TOWN CBD): Extracted coordinates - Lng: 18.4241, Lat: -33.9249
+⏭️  Row 3 (durban beachfront): No map link provided
+✅ Row 4 (Pretoria-East 123): Extracted coordinates - Lng: 28.2293, Lat: -25.7479
+❌ Row 5 (Bloemfontein (Central)): Failed to extract coordinates
+✅ Row 6 (Port Elizabeth / PE): Extracted coordinates - Lng: 25.6022, Lat: -33.9608
+✅ Row 7 (N1 City Mall): Extracted coordinates - Lng: 18.5810, Lat: -33.8918
+✅ Row 8 (East London - 5th Avenue): Extracted coordinates - Lng: 27.8708, Lat: -32.9783
+✅ Row 9 (Polokwane R37 & R71): Extracted coordinates - Lng: 29.4689, Lat: -23.9045
+⏭️  Row 10 (Kimberley: Big Hole): No map link provided
+✅ Row 11 (Johannesburg CBD - 2nd Floor): Extracted coordinates - Lng: 28.0473, Lat: -26.2041
+✅ Row 12 (Cape Town V&A Waterfront): Extracted coordinates - Lng: 18.4178, Lat: -33.9022
+✅ Row 13 (DURBAN uMhlanga Ridge): Extracted coordinates - Lng: 31.0218, Lat: -29.8587
+✅ Row 14 (Pretoria Menlyn Park): Extracted coordinates - Lng: 28.2775, Lat: -25.7863
+✅ Row 15 (Orange Farm Ext. 7): Extracted coordinates - Lng: 27.8546, Lat: -26.5225
+✅ Row 16 (Soweto - Orlando West): Extracted coordinates - Lng: 27.8546, Lat: -26.2309
+✅ Row 17 (Midrand @ Waterfall): Extracted coordinates - Lng: 28.1122, Lat: -25.9092
+✅ Row 18 (Centurion Mall #205): Extracted coordinates - Lng: 28.1880, Lat: -25.8601
+✅ Row 19 (Sandton, Gauteng): Extracted coordinates - Lng: 28.0567, Lat: -26.1076
+❌ Row 20 (PE Central): Failed to extract coordinates
 
 INFO - Saving output file: test_issues_output.xlsx
 INFO - Processing complete!
-INFO - Summary: Successfully processed 6/10 rows
+INFO - Summary: Successfully processed 16/20 rows
 ```
 
 ### Final Results:
 
 | Row | Name | Status | Coordinates |
 |-----|------|--------|-------------|
-| 1 | Sandton City | ✅ SUCCESS | 28.0567, -26.1076 |
-| 2 | Cape Town | ✅ SUCCESS | 18.4241, -33.9249 |
-| 3 | Durban | ⏭️ SKIPPED | No map link |
-| 4 | Pretoria | ⏭️ SKIPPED | No map link |
-| 5 | Bloemfontein | ❌ FAILED | Invalid URL |
-| 6 | Port Elizabeth | ✅ SUCCESS | 25.6022, -33.9608 |
-| 7 | (empty name) | ✅ SUCCESS | 28.0473, -26.2041 |
-| 8 | East London | ✅ SUCCESS | 27.8708, -32.9783 |
-| 9 | Polokwane | ✅ SUCCESS | 29.4689, -23.9045 |
-| 10 | Kimberley | ❌ FAILED | Shortened URL |
+| 1 | Sandton City Mall | ✅ SUCCESS | 28.0567, -26.1076 |
+| 2 | CAPE TOWN CBD | ✅ SUCCESS | 18.4241, -33.9249 |
+| 3 | durban beachfront | ⏭️ SKIPPED | No map link |
+| 4 | Pretoria-East 123 | ✅ SUCCESS | 28.2293, -25.7479 |
+| 5 | Bloemfontein (Central) | ❌ FAILED | Invalid URL |
+| 6 | Port Elizabeth / PE | ✅ SUCCESS | 25.6022, -33.9608 |
+| 7 | N1 City Mall | ✅ SUCCESS | 18.5810, -33.8918 |
+| 8 | East London - 5th Avenue | ✅ SUCCESS | 27.8708, -32.9783 |
+| 9 | Polokwane R37 & R71 | ✅ SUCCESS | 29.4689, -23.9045 |
+| 10 | Kimberley: Big Hole | ⏭️ SKIPPED | No map link |
+| 11 | Johannesburg CBD - 2nd Floor | ✅ SUCCESS | 28.0473, -26.2041 |
+| 12 | Cape Town V&A Waterfront | ✅ SUCCESS | 18.4178, -33.9022 |
+| 13 | DURBAN uMhlanga Ridge | ✅ SUCCESS | 31.0218, -29.8587 |
+| 14 | Pretoria Menlyn Park | ✅ SUCCESS | 28.2775, -25.7863 |
+| 15 | Orange Farm Ext. 7 | ✅ SUCCESS | 27.8546, -26.5225 |
+| 16 | Soweto - Orlando West | ✅ SUCCESS | 27.8546, -26.2309 |
+| 17 | Midrand @ Waterfall | ✅ SUCCESS | 28.1122, -25.9092 |
+| 18 | Centurion Mall #205 | ✅ SUCCESS | 28.1880, -25.8601 |
+| 19 | Sandton, Gauteng | ✅ SUCCESS | 28.0567, -26.1076 |
+| 20 | PE Central | ❌ FAILED | Shortened URL |
 
-**Success Rate**: 6/10 rows (60.0%)
+**Success Rate**: 16/20 rows (80.0%)
 
 ---
 
