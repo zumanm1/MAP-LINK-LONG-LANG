@@ -134,22 +134,40 @@ def upload_file():
         # Read the uploaded file
         df = pd.read_excel(file)
 
-        # Validate required columns
+        # Clean column names: strip whitespace
+        df.columns = df.columns.str.strip()
+
+        # Create a case-insensitive column mapping
+        column_mapping = {col.lower(): col for col in df.columns}
+
+        # Validate required map column (case-insensitive, flexible names)
         map_column = None
-        if 'Map link' in df.columns:
-            map_column = 'Map link'
-        elif 'Maps' in df.columns:
-            map_column = 'Maps'
-        else:
+        map_column_options = ['map link', 'maps', 'map', 'map links', 'map_link', 'maplink']
+
+        for option in map_column_options:
+            if option in column_mapping:
+                map_column = column_mapping[option]
+                break
+
+        if not map_column:
+            # Provide helpful error with actual column names
+            actual_columns = ', '.join(f'"{col}"' for col in df.columns)
             return jsonify({
-                'error': 'Missing required map column: "Map link" or "Maps"'
+                'error': f'Missing required map column. Looking for: "Map link" or "Maps" (case-insensitive). Found columns: {actual_columns}'
             }), 400
 
-        required_columns = ['Name', 'Region']
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        # Validate other required columns (case-insensitive)
+        required_columns = ['name', 'region']
+        missing_columns = []
+
+        for req_col in required_columns:
+            if req_col not in column_mapping:
+                missing_columns.append(req_col.capitalize())
+
         if missing_columns:
+            actual_columns = ', '.join(f'"{col}"' for col in df.columns)
             return jsonify({
-                'error': f'Missing required columns: {", ".join(missing_columns)}'
+                'error': f'Missing required columns: {", ".join(missing_columns)}. Found columns: {actual_columns}'
             }), 400
 
         # Store original data for preview
@@ -210,15 +228,37 @@ def process_file(session_id):
 
         # Read the uploaded file
         df = pd.read_excel(session_info['upload_path'])
+
+        # Clean column names: strip whitespace
+        df.columns = df.columns.str.strip()
+
         map_column = session_info['map_column']
 
-        # Determine longitude and latitude column names
-        long_column = 'Long' if 'Long' in df.columns else 'LONG'
-        if long_column not in df.columns:
+        # Determine longitude and latitude column names (case-insensitive, flexible)
+        column_mapping_lower = {col.lower(): col for col in df.columns}
+
+        # Try to find existing Long column
+        long_column = None
+        for option in ['long', 'longitude', 'lng']:
+            if option in column_mapping_lower:
+                long_column = column_mapping_lower[option]
+                break
+
+        # If not found, create new column
+        if not long_column:
+            long_column = 'Long'
             df[long_column] = None
 
-        lat_column = 'Latts' if 'Latts' in df.columns else 'LATTs'
-        if lat_column not in df.columns:
+        # Try to find existing Lat column
+        lat_column = None
+        for option in ['latts', 'latt', 'lat', 'latitude']:
+            if option in column_mapping_lower:
+                lat_column = column_mapping_lower[option]
+                break
+
+        # If not found, create new column
+        if not lat_column:
+            lat_column = 'Latts'
             df[lat_column] = None
 
         successful = 0

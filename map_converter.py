@@ -114,46 +114,81 @@ def process_excel_file(input_file: str, output_file: str) -> None:
         # Read the Excel file
         logger.info(f"Reading input file: {input_file}")
         df = pd.read_excel(input_file)
-        
-        # Validate required columns (support both naming conventions)
-        # Check for 'Map link' or 'Maps'
+
+        # Clean column names: strip whitespace
+        df.columns = df.columns.str.strip()
+
+        # Create a case-insensitive column mapping
+        column_mapping = {col.lower(): col for col in df.columns}
+
+        # Validate required map column (case-insensitive, flexible names)
         map_column = None
-        if 'Map link' in df.columns:
-            map_column = 'Map link'
-        elif 'Maps' in df.columns:
-            map_column = 'Maps'
-        else:
-            raise ValueError("Missing required map column: 'Map link' or 'Maps'")
-        
-        required_columns = ['Name', 'Region']
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        map_column_options = ['map link', 'maps', 'map', 'map links', 'map_link', 'maplink']
+
+        for option in map_column_options:
+            if option in column_mapping:
+                map_column = column_mapping[option]
+                break
+
+        if not map_column:
+            actual_columns = ', '.join(f'"{col}"' for col in df.columns)
+            raise ValueError(f'Missing required map column. Looking for: "Map link" or "Maps" (case-insensitive). Found columns: {actual_columns}')
+
+        # Validate other required columns (case-insensitive)
+        required_columns = ['name', 'region']
+        missing_columns = []
+
+        for req_col in required_columns:
+            if req_col not in column_mapping:
+                missing_columns.append(req_col.capitalize())
         if missing_columns:
-            raise ValueError(f"Missing required columns: {missing_columns}")
-        
-        # Determine longitude column name (Long or LONG)
-        long_column = 'Long' if 'Long' in df.columns else 'LONG'
-        if long_column not in df.columns:
+            actual_columns = ', '.join(f'"{col}"' for col in df.columns)
+            raise ValueError(f"Missing required columns: {', '.join(missing_columns)}. Found columns: {actual_columns}")
+
+        # Determine longitude and latitude column names (case-insensitive, flexible)
+        # Try to find existing Long column
+        long_column = None
+        for option in ['long', 'longitude', 'lng']:
+            if option in column_mapping:
+                long_column = column_mapping[option]
+                break
+
+        # If not found, create new column
+        if not long_column:
+            long_column = 'Long'
             df[long_column] = None
-        
-        # Determine latitude column name (Latts or LATTs)
-        lat_column = 'Latts' if 'Latts' in df.columns else 'LATTs'
-        if lat_column not in df.columns:
+
+        # Try to find existing Lat column
+        lat_column = None
+        for option in ['latts', 'latt', 'lat', 'latitude']:
+            if option in column_mapping:
+                lat_column = column_mapping[option]
+                break
+
+        # If not found, create new column
+        if not lat_column:
+            lat_column = 'Latts'
             df[lat_column] = None
         
+        # Get the actual Name column (case-insensitive)
+        name_column = column_mapping.get('name', 'Name')
+
         # Process each row
         logger.info(f"Processing {len(df)} rows...")
         for idx, row in df.iterrows():
             map_link = row[map_column]
+            row_name = row.get(name_column, f"Row {idx + 1}")
+
             if pd.notna(map_link):
                 lng, lat = extract_coordinates_from_url(str(map_link))
                 if lng is not None and lat is not None:
                     df.at[idx, long_column] = lng
                     df.at[idx, lat_column] = lat
-                    logger.info(f"Row {idx + 1} ({row['Name']}): Extracted coordinates - Lng: {lng}, Lat: {lat}")
+                    logger.info(f"Row {idx + 1} ({row_name}): Extracted coordinates - Lng: {lng}, Lat: {lat}")
                 else:
-                    logger.warning(f"Row {idx + 1} ({row['Name']}): Failed to extract coordinates")
+                    logger.warning(f"Row {idx + 1} ({row_name}): Failed to extract coordinates")
             else:
-                logger.warning(f"Row {idx + 1} ({row['Name']}): No map link provided")
+                logger.warning(f"Row {idx + 1} ({row_name}): No map link provided")
         
         # Save to output file
         logger.info(f"Saving output file: {output_file}")
@@ -165,12 +200,12 @@ def process_excel_file(input_file: str, output_file: str) -> None:
         total = len(df)
         logger.info(f"Summary: Successfully processed {successful}/{total} rows")
         
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         logger.error(f"Input file not found: {input_file}")
-        sys.exit(1)
+        raise
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
-        sys.exit(1)
+        raise
 
 
 def main():
@@ -179,11 +214,14 @@ def main():
         print("Usage: python map_converter.py <input_excel_file> <output_excel_file>")
         print("Example: python map_converter.py input.xlsx output.xlsx")
         sys.exit(1)
-    
+
     input_file = sys.argv[1]
     output_file = sys.argv[2]
-    
-    process_excel_file(input_file, output_file)
+
+    try:
+        process_excel_file(input_file, output_file)
+    except Exception as e:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
