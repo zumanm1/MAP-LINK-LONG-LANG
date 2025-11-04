@@ -9,6 +9,12 @@
 
 **Issue**: "Access Denied" errors on Windows when running the app
 
+**Common Scenarios:**
+1. 🔴 Running `python run.py` → Access Denied (Package installation)
+2. 🔴 Creating virtual environment → Access Denied (venv creation)
+3. 🔴 Creating directories → Access Denied (uploads/processed folders)
+4. 🔴 Running Flask app → Access Denied (File operations)
+
 **Solution**: App now installs packages to USER directory (no admin needed!)
 
 ---
@@ -133,6 +139,62 @@ Python automatically searches user directories:
 ---
 
 ## 🔍 TROUBLESHOOTING
+
+### Issue 0: "Access Denied" when running run.py
+
+**Problem**: `python run.py` gives "Access Denied" or "Permission Denied"
+
+**Possible Causes:**
+1. Project is in a protected folder (e.g., C:\Program Files)
+2. Antivirus is blocking Python
+3. Folder permissions are restricted
+
+**Solutions:**
+
+**Solution 1: Move Project to Your User Folder (RECOMMENDED)**
+```cmd
+REM Move project to your Documents or Downloads folder
+move MAP-LINK-LONG-LANG C:\Users\YourName\Documents\
+
+REM Navigate to new location
+cd C:\Users\YourName\Documents\MAP-LINK-LONG-LANG
+
+REM Try again
+python run.py
+```
+
+**Solution 2: Run from User Directory Initially**
+```cmd
+REM Instead of C:\Program Files, use:
+cd C:\Users\YourName\Downloads\MAP-LINK-LONG-LANG
+python run.py
+```
+
+**Solution 3: Check Folder Permissions**
+```cmd
+REM Right-click project folder → Properties → Security tab
+REM Ensure your user account has "Full Control" or at least "Write" permissions
+```
+
+**Solution 4: Temporarily Disable Antivirus**
+```
+1. Open Windows Security
+2. Virus & threat protection
+3. Manage settings
+4. Turn off Real-time protection (temporarily)
+5. Run: python run.py
+6. Turn Real-time protection back on
+```
+
+**Solution 5: Install to System Python (if venv fails)**
+```
+python run.py
+→ Virtual environment creation fails
+→ Choose "y" to install to system Python
+→ Packages install to user directory with --user flag
+```
+
+---
 
 ### Issue 1: "python: command not found"
 

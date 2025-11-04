@@ -51,13 +51,22 @@ def setup_virtual_environment():
     """Create virtual environment if it doesn't exist"""
     print_colored("\n🔧 Setting up virtual environment...", Colors.BLUE)
 
-    base_dir = Path(__file__).parent
-    venv_dir = base_dir / 'venv'
+    try:
+        base_dir = Path(__file__).parent
+        venv_dir = base_dir / 'venv'
 
-    # Check if venv exists
-    if venv_dir.exists():
-        print_colored("   ✅ Virtual environment already exists", Colors.GREEN)
-        return venv_dir
+        # Check if venv exists
+        if venv_dir.exists():
+            print_colored("   ✅ Virtual environment already exists", Colors.GREEN)
+            return venv_dir
+    except PermissionError as e:
+        print_colored(f"\n   ❌ Permission denied when accessing project directory", Colors.RED)
+        print_colored(f"   📋 Details: {e}", Colors.YELLOW)
+        print_colored(f"   💡 Try moving the project to a folder you have write access to", Colors.BLUE)
+        return None
+    except Exception as e:
+        print_colored(f"\n   ❌ Error accessing project directory: {e}", Colors.RED)
+        return None
 
     # Create virtual environment
     try:
@@ -68,7 +77,7 @@ def setup_virtual_environment():
         process = subprocess.Popen(
             [sys.executable, '-m', 'venv', str(venv_dir)],
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True
         )
 
@@ -77,13 +86,26 @@ def setup_virtual_environment():
             print(".", end="", flush=True)
             time.sleep(0.5)
 
+        # Capture output for debugging
+        stdout, stderr = process.communicate()
+
         if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, process.args)
+            print()  # New line after dots
+            print_colored(f"\n   ❌ Error creating virtual environment", Colors.RED)
+            if stderr:
+                print_colored(f"   📋 Error details: {stderr.strip()}", Colors.YELLOW)
+            if "permission" in stderr.lower() or "access" in stderr.lower():
+                print_colored("   💡 This is usually a permissions issue on Windows", Colors.BLUE)
+            return None
 
         print()  # New line after dots
         print_colored("   ✅ Virtual environment created successfully", Colors.GREEN)
         return venv_dir
-    except subprocess.CalledProcessError as e:
+    except PermissionError as e:
+        print_colored(f"\n   ❌ Permission denied when creating virtual environment", Colors.RED)
+        print_colored(f"   📋 Details: {e}", Colors.YELLOW)
+        return None
+    except Exception as e:
         print_colored(f"\n   ❌ Error creating virtual environment: {e}", Colors.RED)
         return None
 
