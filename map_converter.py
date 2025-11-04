@@ -20,6 +20,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def validate_coordinates(lng: float, lat: float) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Validate longitude and latitude are within valid ranges.
+
+    Args:
+        lng: Longitude value
+        lat: Latitude value
+
+    Returns:
+        Tuple of (lng, lat) if valid, or (None, None) if invalid
+    """
+    # Validate latitude range: -90 to 90
+    if not (-90.0 <= lat <= 90.0):
+        logger.error(f"❌ Invalid latitude: {lat} (must be between -90 and 90)")
+        return None, None
+
+    # Validate longitude range: -180 to 180
+    if not (-180.0 <= lng <= 180.0):
+        logger.error(f"❌ Invalid longitude: {lng} (must be between -180 and 180)")
+        return None, None
+
+    return lng, lat
+
+
 def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Optional[float]]:
     """
     Extract longitude and latitude from various map link formats.
@@ -54,21 +78,21 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
         match = re.search(pattern1, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
-            return lng, lat
+            return validate_coordinates(lng, lat)
         
         # Pattern 2: q=lat,lng format
         pattern2 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern2, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
-            return lng, lat
+            return validate_coordinates(lng, lat)
         
         # Pattern 3: /maps/place/.../@lat,lng
         pattern3 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern3, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
-            return lng, lat
+            return validate_coordinates(lng, lat)
         
         # Pattern 4: Direct coordinate pair in URL
         pattern4 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
@@ -79,20 +103,20 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
             # Latitude: -90 to 90, Longitude: -180 to 180
             if abs(coord1) <= 90 and abs(coord2) <= 180:
                 # coord1 is likely latitude
-                return coord2, coord1
+                return validate_coordinates(coord2, coord1)
             elif abs(coord2) <= 90 and abs(coord1) <= 180:
                 # coord2 is likely latitude
-                return coord1, coord2
+                return validate_coordinates(coord1, coord2)
             elif abs(coord1) <= 90:
                 # Only coord1 fits latitude range, coord2 must be longitude
-                return coord2, coord1
+                return validate_coordinates(coord2, coord1)
             elif abs(coord2) <= 90:
                 # Only coord2 fits latitude range, coord1 must be longitude
-                return coord1, coord2
+                return validate_coordinates(coord1, coord2)
             else:
                 # Both > 90, can't determine order - assume first is lat, second is lng
                 # This handles edge cases like (120.0, 150.0) in Eastern Asia/Pacific
-                return coord2, coord1
+                return validate_coordinates(coord2, coord1)
         
         logger.warning(f"Could not extract coordinates from: {map_link}")
         return None, None

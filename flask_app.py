@@ -13,10 +13,18 @@ import io
 import os
 import uuid
 import time
+import logging
 from pathlib import Path
 from threading import Lock
 from werkzeug.utils import secure_filename
 from map_converter import extract_coordinates_from_url
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Get the base directory (cross-platform)
 BASE_DIR = Path(__file__).resolve().parent
@@ -464,13 +472,34 @@ def download_file(session_id):
         return jsonify({'error': 'File has not been processed yet'}), 400
 
     try:
+        # Resolve and validate path to prevent path traversal attacks
+        output_path = Path(session_info['output_path']).resolve()
+        processed_folder = app.config['PROCESSED_FOLDER'].resolve()
+
+        # Check if path is within allowed directory
+        try:
+            output_path.relative_to(processed_folder)
+        except ValueError:
+            # Path is not relative to processed_folder - SECURITY VIOLATION
+            logger.error(f"🚨 Path traversal attempt blocked: {output_path}")
+            return jsonify({'error': 'Invalid file path'}), 403
+
+        # Verify file exists
+        if not output_path.exists():
+            return jsonify({'error': 'File not found'}), 404
+
+        # Verify it's a file (not a directory)
+        if not output_path.is_file():
+            return jsonify({'error': 'Invalid file'}), 400
+
         return send_file(
-            session_info['output_path'],
+            str(output_path),
             as_attachment=True,
             download_name=session_info['output_filename'],
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     except Exception as e:
+        logger.error(f"Download error: {str(e)}")
         return jsonify({'error': f'Error downloading file: {str(e)}'}), 500
 
 

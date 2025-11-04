@@ -368,7 +368,15 @@ function createLogEntry(log, status) {
     if (log.map_link) {
         const detail = document.createElement('div');
         detail.className = 'log-entry-detail';
-        detail.innerHTML = `URL: <code>${log.map_link}</code>`;
+
+        // Create text node for "URL: " prefix
+        detail.appendChild(document.createTextNode('URL: '));
+
+        // Create <code> element for map link (using textContent to prevent XSS)
+        const codeElement = document.createElement('code');
+        codeElement.textContent = log.map_link;  // textContent auto-escapes HTML
+        detail.appendChild(codeElement);
+
         entry.appendChild(detail);
     }
 
