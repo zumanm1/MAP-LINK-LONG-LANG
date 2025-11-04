@@ -127,8 +127,12 @@ def test_alternative_map_column_names():
     alternative_names = [
         'map',
         'map links',
+        'maps link',  # User's actual column name
+        'maps links',
         'map_link',
-        'maplink'
+        'maps_link',
+        'maplink',
+        'mapslink'
     ]
 
     for map_col_name in alternative_names:

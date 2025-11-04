@@ -123,7 +123,7 @@ def process_excel_file(input_file: str, output_file: str) -> None:
 
         # Validate required map column (case-insensitive, flexible names)
         map_column = None
-        map_column_options = ['map link', 'maps', 'map', 'map links', 'map_link', 'maplink']
+        map_column_options = ['map link', 'maps link', 'maps', 'map', 'map links', 'maps links', 'map_link', 'maps_link', 'maplink', 'mapslink']
 
         for option in map_column_options:
             if option in column_mapping:
