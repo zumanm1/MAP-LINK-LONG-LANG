@@ -49,44 +49,59 @@ def method1_regex_extraction(map_link: str) -> Tuple[Optional[float], Optional[f
     - https://www.google.com/maps?q=-26.108204,28.0527061
     - https://maps.google.com/?q=-26.108204,28.0527061
     - https://www.google.com/maps/search/query/@-26.094,28.186,13z
+    - https://www.google.com/maps/search/?api=1&query=47.5951518%2C-122.3316393
+    - URLs ending in =en (language parameter)
     - https://goo.gl/maps/... (shortened URLs)
     """
     if not map_link or not isinstance(map_link, str):
         return None, None
 
     try:
-        # Pattern 1: @lat,lng,zoom format (including search URLs)
-        pattern1 = r'@(-?\d+\.\d+),(-?\d+\.\d+),?\d*z?'
-        match = re.search(pattern1, map_link)
+        # Pattern 1: query=lat%2Clng format (URL-encoded comma)
+        # Example: ?api=1&query=47.5951518%2C-122.3316393
+        pattern_query_encoded = r'[?&]query=(-?\d+\.?\d*)%2C(-?\d+\.?\d*)'
+        match = re.search(pattern_query_encoded, map_link, re.IGNORECASE)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
-            logger.debug(f"✅ Method 1 (Pattern 1): Found coordinates @{lat},{lng}")
+            logger.debug(f"✅ Method 1 (Pattern Query Encoded): Found coordinates query={lat}%2C{lng}")
             return validate_coordinates(lng, lat)
 
-        # Pattern 2: q=lat,lng format
-        pattern2 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
+        # Pattern 2: @lat,lng,zoom format (including search URLs)
+        pattern2 = r'@(-?\d+\.\d+),(-?\d+\.\d+),?\d*z?'
         match = re.search(pattern2, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
-            logger.debug(f"✅ Method 1 (Pattern 2): Found coordinates q={lat},{lng}")
+            logger.debug(f"✅ Method 1 (Pattern 2): Found coordinates @{lat},{lng}")
             return validate_coordinates(lng, lat)
 
-        # Pattern 3: /place/.../@lat,lng
-        pattern3 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
+        # Pattern 3: q=lat,lng format
+        pattern3 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern3, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
-            logger.debug(f"✅ Method 1 (Pattern 3): Found coordinates in place URL")
+            logger.debug(f"✅ Method 1 (Pattern 3): Found coordinates q={lat},{lng}")
             return validate_coordinates(lng, lat)
 
-        # Pattern 4: Direct coordinate pair
-        pattern4 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
+        # Pattern 4: /place/.../@lat,lng
+        pattern4 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern4, map_link)
+        if match:
+            lat, lng = float(match.group(1)), float(match.group(2))
+            logger.debug(f"✅ Method 1 (Pattern 4): Found coordinates in place URL")
+            return validate_coordinates(lng, lat)
+
+        # Pattern 5: Direct coordinate pair (with or without URL encoding)
+        # First decode URL-encoded characters
+        from urllib.parse import unquote
+        decoded_link = unquote(map_link)
+
+        pattern5 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
+        match = re.search(pattern5, decoded_link)
         if match:
             coord1, coord2 = float(match.group(1)), float(match.group(2))
             # Determine which is lat vs lng based on ranges
             if abs(coord1) <= 90 and abs(coord2) <= 180:
-                logger.debug(f"✅ Method 1 (Pattern 4): Found coordinates {coord1},{coord2}")
+                logger.debug(f"✅ Method 1 (Pattern 5): Found coordinates {coord1},{coord2}")
                 return validate_coordinates(coord2, coord1)
             elif abs(coord2) <= 90 and abs(coord1) <= 180:
                 return validate_coordinates(coord1, coord2)

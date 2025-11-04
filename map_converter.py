@@ -71,32 +71,46 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
         # 1. https://www.google.com/maps/place/Location/@-26.108204,28.0527061,17z
         # 2. https://www.google.com/maps?q=-26.108204,28.0527061
         # 3. https://maps.google.com/?q=-26.108204,28.0527061
-        # 4. https://goo.gl/maps/... (shortened, resolved above)
-        
-        # Pattern 1: @lat,lng format
-        pattern1 = r'@(-?\d+\.\d+),(-?\d+\.\d+)'
-        match = re.search(pattern1, map_link)
+        # 4. https://www.google.com/maps/search/?api=1&query=47.5951518%2C-122.3316393
+        # 5. URLs with =en (language parameter)
+        # 6. https://goo.gl/maps/... (shortened, resolved above)
+
+        # Pattern 1: query=lat%2Clng format (URL-encoded comma)
+        # Example: ?api=1&query=47.5951518%2C-122.3316393
+        pattern_query_encoded = r'[?&]query=(-?\d+\.?\d*)%2C(-?\d+\.?\d*)'
+        match = re.search(pattern_query_encoded, map_link, re.IGNORECASE)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
-        
-        # Pattern 2: q=lat,lng format
-        pattern2 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
+
+        # Pattern 2: @lat,lng format
+        pattern2 = r'@(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern2, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
-        
-        # Pattern 3: /maps/place/.../@lat,lng
-        pattern3 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
+
+        # Pattern 3: q=lat,lng format
+        pattern3 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern3, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
-        
-        # Pattern 4: Direct coordinate pair in URL
-        pattern4 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
+
+        # Pattern 4: /maps/place/.../@lat,lng
+        pattern4 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
         match = re.search(pattern4, map_link)
+        if match:
+            lat, lng = float(match.group(1)), float(match.group(2))
+            return validate_coordinates(lng, lat)
+
+        # Pattern 5: Direct coordinate pair in URL (with or without URL encoding)
+        # First decode URL-encoded characters
+        from urllib.parse import unquote
+        decoded_link = unquote(map_link)
+
+        pattern5 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
+        match = re.search(pattern5, decoded_link)
         if match:
             coord1, coord2 = float(match.group(1)), float(match.group(2))
             # Determine which is lat and which is lng based on typical ranges
