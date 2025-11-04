@@ -26,9 +26,14 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['UPLOAD_FOLDER'] = BASE_DIR / 'uploads'
 app.config['PROCESSED_FOLDER'] = BASE_DIR / 'processed'
 
-# Ensure upload directories exist (cross-platform)
-app.config['UPLOAD_FOLDER'].mkdir(parents=True, exist_ok=True)
-app.config['PROCESSED_FOLDER'].mkdir(parents=True, exist_ok=True)
+# Ensure upload directories exist (cross-platform with error handling)
+try:
+    app.config['UPLOAD_FOLDER'].mkdir(parents=True, exist_ok=True)
+    app.config['PROCESSED_FOLDER'].mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    print("⚠️  Warning: Could not create upload directories. They will be created when needed.")
+except Exception as e:
+    print(f"⚠️  Warning: Directory creation issue: {e}")
 
 # Initialize rate limiter for DoS protection
 limiter = Limiter(
@@ -154,6 +159,10 @@ def upload_file():
         # Save the full dataframe for processing (cross-platform path)
         filename = secure_filename(file.filename)
         upload_path = app.config['UPLOAD_FOLDER'] / f"{session_id}_{filename}"
+
+        # Ensure upload folder exists (in case it wasn't created at startup)
+        upload_path.parent.mkdir(parents=True, exist_ok=True)
+
         df.to_excel(str(upload_path), index=False)
 
         # Store session info with timestamp for cleanup
@@ -259,6 +268,10 @@ def process_file(session_id):
         # Save processed file (cross-platform path)
         output_filename = f"processed_{session_info['filename']}"
         output_path = app.config['PROCESSED_FOLDER'] / f"{session_id}_{output_filename}"
+
+        # Ensure processed folder exists (in case it wasn't created at startup)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         df.to_excel(str(output_path), index=False)
 
         # Update session info

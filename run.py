@@ -176,11 +176,11 @@ def install_packages_system():
 
     if use_uv:
         print_colored("   ⚡ Using uv (fast package installer)", Colors.GREEN)
-        print_colored("   📥 Installing dependencies with verbose output...\n", Colors.YELLOW)
+        print_colored("   📥 Installing dependencies to user directory (no admin needed)...\n", Colors.YELLOW)
 
         try:
             subprocess.check_call(
-                ['uv', 'pip', 'install', '-r', str(requirements_file), '--system'],
+                ['uv', 'pip', 'install', '-r', str(requirements_file), '--user'],
             )
             print_colored("\n   ✅ All packages installed successfully with uv", Colors.GREEN)
             return True
@@ -191,11 +191,12 @@ def install_packages_system():
 
     if not use_uv:
         print_colored("   🐍 Using pip (standard installer)", Colors.BLUE)
-        print_colored("   📥 Installing dependencies with verbose output...\n", Colors.YELLOW)
+        print_colored("   📥 Installing dependencies to user directory (no admin needed)...\n", Colors.YELLOW)
 
         try:
+            # Use --user flag to install to user directory (no admin needed!)
             subprocess.check_call(
-                [sys.executable, '-m', 'pip', 'install', '-r', str(requirements_file)],
+                [sys.executable, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)],
             )
             print_colored("\n   ✅ All packages installed successfully with pip", Colors.GREEN)
             return True
@@ -216,9 +217,14 @@ def validate_paths():
         dir_path = base_dir / dir_name
 
         if dir_name in ['uploads', 'processed']:
-            # Create if doesn't exist
-            dir_path.mkdir(parents=True, exist_ok=True)
-            print_colored(f"   ✅ {dir_name}/ - Created/Verified", Colors.GREEN)
+            # Create if doesn't exist (with error handling for Windows)
+            try:
+                dir_path.mkdir(parents=True, exist_ok=True)
+                print_colored(f"   ✅ {dir_name}/ - Created/Verified", Colors.GREEN)
+            except PermissionError:
+                print_colored(f"   ⚠️  {dir_name}/ - Permission denied (will create at runtime)", Colors.YELLOW)
+            except Exception as e:
+                print_colored(f"   ⚠️  {dir_name}/ - Could not create: {e}", Colors.YELLOW)
         elif dir_path.exists():
             print_colored(f"   ✅ {dir_name}/ - Found", Colors.GREEN)
         else:
