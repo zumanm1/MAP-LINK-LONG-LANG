@@ -179,16 +179,21 @@ def process_excel_file(input_file: str, output_file: str) -> None:
             map_link = row[map_column]
             row_name = row.get(name_column, f"Row {idx + 1}")
 
-            if pd.notna(map_link):
-                lng, lat = extract_coordinates_from_url(str(map_link))
-                if lng is not None and lat is not None:
-                    df.at[idx, long_column] = lng
-                    df.at[idx, lat_column] = lat
-                    logger.info(f"Row {idx + 1} ({row_name}): Extracted coordinates - Lng: {lng}, Lat: {lat}")
-                else:
-                    logger.warning(f"Row {idx + 1} ({row_name}): Failed to extract coordinates")
-            else:
+            # Skip rows with missing or empty map links (blank output)
+            if pd.isna(map_link) or str(map_link).strip() == '':
                 logger.warning(f"Row {idx + 1} ({row_name}): No map link provided")
+                # LONG and LATTs remain blank (NaN) - no modification
+                continue
+
+            # Process rows with map links
+            lng, lat = extract_coordinates_from_url(str(map_link))
+            if lng is not None and lat is not None:
+                df.at[idx, long_column] = lng
+                df.at[idx, lat_column] = lat
+                logger.info(f"Row {idx + 1} ({row_name}): Extracted coordinates - Lng: {lng}, Lat: {lat}")
+            else:
+                logger.warning(f"Row {idx + 1} ({row_name}): Failed to extract coordinates")
+                # LONG and LATTs remain blank (NaN) - no modification
         
         # Save to output file
         logger.info(f"Saving output file: {output_file}")
