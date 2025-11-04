@@ -9,18 +9,22 @@ import pandas as pd
 import io
 import os
 import uuid
+from pathlib import Path
 from werkzeug.utils import secure_filename
 from map_converter import extract_coordinates_from_url
+
+# Get the base directory (cross-platform)
+BASE_DIR = Path(__file__).resolve().parent
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['PROCESSED_FOLDER'] = 'processed'
+app.config['UPLOAD_FOLDER'] = BASE_DIR / 'uploads'
+app.config['PROCESSED_FOLDER'] = BASE_DIR / 'processed'
 
-# Ensure upload directories exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['PROCESSED_FOLDER'], exist_ok=True)
+# Ensure upload directories exist (cross-platform)
+app.config['UPLOAD_FOLDER'].mkdir(parents=True, exist_ok=True)
+app.config['PROCESSED_FOLDER'].mkdir(parents=True, exist_ok=True)
 
 # Store processing results in memory (in production, use Redis or database)
 processing_results = {}
@@ -80,15 +84,15 @@ def upload_file():
         preview_data = df.head(10).to_dict('records')
         preview_columns = df.columns.tolist()
 
-        # Save the full dataframe for processing
+        # Save the full dataframe for processing (cross-platform path)
         filename = secure_filename(file.filename)
-        upload_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_{filename}")
-        df.to_excel(upload_path, index=False)
+        upload_path = app.config['UPLOAD_FOLDER'] / f"{session_id}_{filename}"
+        df.to_excel(str(upload_path), index=False)
 
         # Store session info
         processing_results[session_id] = {
             'filename': filename,
-            'upload_path': upload_path,
+            'upload_path': str(upload_path),
             'map_column': map_column,
             'total_rows': len(df),
             'status': 'uploaded'
@@ -179,14 +183,14 @@ def process_file(session_id):
                     'map_link': str(map_link)[:50] + '...' if len(str(map_link)) > 50 else str(map_link)
                 })
 
-        # Save processed file
+        # Save processed file (cross-platform path)
         output_filename = f"processed_{session_info['filename']}"
-        output_path = os.path.join(app.config['PROCESSED_FOLDER'], f"{session_id}_{output_filename}")
-        df.to_excel(output_path, index=False)
+        output_path = app.config['PROCESSED_FOLDER'] / f"{session_id}_{output_filename}"
+        df.to_excel(str(output_path), index=False)
 
         # Update session info
         session_info['status'] = 'completed'
-        session_info['output_path'] = output_path
+        session_info['output_path'] = str(output_path)
         session_info['output_filename'] = output_filename
         session_info['successful'] = successful
         session_info['failed'] = failed
