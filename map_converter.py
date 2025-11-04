@@ -146,28 +146,31 @@ def process_excel_file(input_file: str, output_file: str) -> None:
             raise ValueError(f"Missing required columns: {', '.join(missing_columns)}. Found columns: {actual_columns}")
 
         # Determine longitude and latitude column names (case-insensitive, flexible)
+        # The column_mapping already maps lowercase keys to actual column names
+        # So 'long' maps to 'LONG' if that's what the user has
+
         # Try to find existing Long column
         long_column = None
         for option in ['long', 'longitude', 'lng']:
             if option in column_mapping:
-                long_column = column_mapping[option]
+                long_column = column_mapping[option]  # Returns actual column name (e.g., 'LONG')
                 break
 
-        # If not found, create new column
+        # If not found, create new column with default name 'LONG'
         if not long_column:
-            long_column = 'Long'
+            long_column = 'LONG'
             df[long_column] = None
 
         # Try to find existing Lat column
         lat_column = None
         for option in ['latts', 'latt', 'lat', 'latitude']:
             if option in column_mapping:
-                lat_column = column_mapping[option]
+                lat_column = column_mapping[option]  # Returns actual column name (e.g., 'LATTs')
                 break
 
-        # If not found, create new column
+        # If not found, create new column with default name 'LATTs'
         if not lat_column:
-            lat_column = 'Latts'
+            lat_column = 'LATTs'
             df[lat_column] = None
         
         # Get the actual Name column (case-insensitive)

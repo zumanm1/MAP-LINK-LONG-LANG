@@ -241,24 +241,24 @@ def process_file(session_id):
         long_column = None
         for option in ['long', 'longitude', 'lng']:
             if option in column_mapping_lower:
-                long_column = column_mapping_lower[option]
+                long_column = column_mapping_lower[option]  # Returns actual column name (e.g., 'LONG')
                 break
 
-        # If not found, create new column
+        # If not found, create new column with default name 'LONG'
         if not long_column:
-            long_column = 'Long'
+            long_column = 'LONG'
             df[long_column] = None
 
         # Try to find existing Lat column
         lat_column = None
         for option in ['latts', 'latt', 'lat', 'latitude']:
             if option in column_mapping_lower:
-                lat_column = column_mapping_lower[option]
+                lat_column = column_mapping_lower[option]  # Returns actual column name (e.g., 'LATTs')
                 break
 
-        # If not found, create new column
+        # If not found, create new column with default name 'LATTs'
         if not lat_column:
-            lat_column = 'Latts'
+            lat_column = 'LATTs'
             df[lat_column] = None
 
         successful = 0
