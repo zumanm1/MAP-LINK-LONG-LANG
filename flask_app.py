@@ -49,7 +49,7 @@ processing_results = {}
 processing_results_lock = Lock()
 
 # Session configuration
-SESSION_TTL = 3600  # 1 hour in seconds
+SESSION_TTL = 7200  # 2 hours in seconds (increased for better UX)
 
 # Per-session locks to prevent concurrent processing
 session_locks = {}
@@ -75,6 +75,7 @@ def cleanup_old_sessions():
 
         for session_id in expired_sessions:
             data = processing_results[session_id]
+            age = current_time - data.get('created_at', 0)
 
             # Delete uploaded file
             if 'upload_path' in data:
@@ -90,9 +91,10 @@ def cleanup_old_sessions():
 
             # Remove from dict
             del processing_results[session_id]
+            print(f"🧹 Cleaned up expired session {session_id[:8]}... (age: {age/60:.1f} minutes)")
 
         if expired_sessions:
-            print(f"🧹 Cleaned up {len(expired_sessions)} expired sessions")
+            print(f"✅ Total cleanup: {len(expired_sessions)} expired sessions removed")
 
 
 @app.after_request
@@ -213,7 +215,9 @@ def upload_file():
 def process_file(session_id):
     """Process the uploaded file and extract coordinates."""
     if session_id not in processing_results:
-        return jsonify({'error': 'Invalid session ID'}), 400
+        return jsonify({
+            'error': 'Invalid session ID. Your session may have expired. Please upload the file again.'
+        }), 400
 
     # Get session lock to prevent concurrent processing
     session_lock = get_session_lock(session_id)
@@ -224,6 +228,9 @@ def process_file(session_id):
 
     try:
         session_info = processing_results[session_id]
+
+        # Refresh session timestamp to prevent cleanup during processing
+        session_info['created_at'] = time.time()
 
         # Mark as processing
         session_info['status'] = 'processing'
@@ -353,9 +360,14 @@ def process_file(session_id):
 def download_file(session_id):
     """Download the processed file."""
     if session_id not in processing_results:
-        return jsonify({'error': 'Invalid session ID'}), 404
+        return jsonify({
+            'error': 'Invalid session ID. Your session may have expired. Please upload and process the file again.'
+        }), 404
 
     session_info = processing_results[session_id]
+
+    # Refresh session timestamp to prevent cleanup during download
+    session_info['created_at'] = time.time()
 
     if session_info['status'] != 'completed':
         return jsonify({'error': 'File has not been processed yet'}), 400
