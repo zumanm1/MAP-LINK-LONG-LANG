@@ -146,8 +146,7 @@ def validate_paths():
     print_colored("\n📄 Checking required files...", Colors.BLUE)
     required_files = {
         'map_converter.py': 'Core conversion logic',
-        'flask_app.py': 'Flask web application',
-        'app.py': 'Streamlit web application'
+        'flask_app.py': 'Flask web application'
     }
 
     for file_name, description in required_files.items():
@@ -164,19 +163,18 @@ def select_app():
     """Ask user which app to run"""
     print_colored("\n🚀 Select application to run:", Colors.BLUE)
     print("   1. Flask Web App (http://localhost:5000)")
-    print("   2. Streamlit Web App (http://localhost:8501)")
-    print("   3. CLI Tool (Command line)")
-    print("   4. Uninstall (Remove virtual environment)")
-    print("   5. Exit")
+    print("   2. CLI Tool (Command line)")
+    print("   3. Uninstall (Remove virtual environment)")
+    print("   4. Exit")
 
     while True:
         try:
-            choice = input("\n   Enter choice (1-5): ").strip()
+            choice = input("\n   Enter choice (1-4): ").strip()
 
-            if choice in ['1', '2', '3', '4', '5']:
+            if choice in ['1', '2', '3', '4']:
                 return int(choice)
             else:
-                print_colored("   ⚠️  Invalid choice. Please enter 1-5.", Colors.YELLOW)
+                print_colored("   ⚠️  Invalid choice. Please enter 1-4.", Colors.YELLOW)
         except KeyboardInterrupt:
             print_colored("\n\n   👋 Goodbye!", Colors.BLUE)
             sys.exit(0)
@@ -195,21 +193,6 @@ def run_flask_app(venv_dir):
         subprocess.run([str(python_path), str(flask_app)])
     except KeyboardInterrupt:
         print_colored("\n\n   ⏹️  Flask server stopped.", Colors.YELLOW)
-
-def run_streamlit_app(venv_dir):
-    """Run Streamlit application using venv Python"""
-    print_colored("\n🌐 Starting Streamlit Web Server...", Colors.GREEN)
-    print_colored("   The app will open in your browser automatically", Colors.BOLD + Colors.GREEN)
-    print_colored("   Press Ctrl+C to stop\n", Colors.YELLOW)
-
-    base_dir = Path(__file__).parent
-    streamlit_app = base_dir / 'app.py'
-    python_path = get_venv_python(venv_dir)
-
-    try:
-        subprocess.run([str(python_path), '-m', 'streamlit', 'run', str(streamlit_app)])
-    except KeyboardInterrupt:
-        print_colored("\n\n   ⏹️  Streamlit server stopped.", Colors.YELLOW)
 
 def run_cli_tool(venv_dir):
     """Run CLI tool using venv Python"""
@@ -306,14 +289,12 @@ def main():
             if choice == 1:
                 run_flask_app(venv_dir)
             elif choice == 2:
-                run_streamlit_app(venv_dir)
-            elif choice == 3:
                 run_cli_tool(venv_dir)
-            elif choice == 4:
+            elif choice == 3:
                 uninstall()
                 print_colored("\n   👋 Goodbye!", Colors.BLUE)
                 break
-            elif choice == 5:
+            elif choice == 4:
                 print_colored("\n   👋 Goodbye!", Colors.BLUE)
                 break
 

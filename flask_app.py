@@ -5,11 +5,15 @@ Converts map links in Excel files to longitude and latitude coordinates.
 """
 
 from flask import Flask, render_template, request, jsonify, send_file, session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import pandas as pd
 import io
 import os
 import uuid
+import time
 from pathlib import Path
+from threading import Lock
 from werkzeug.utils import secure_filename
 from map_converter import extract_coordinates_from_url
 
@@ -26,8 +30,70 @@ app.config['PROCESSED_FOLDER'] = BASE_DIR / 'processed'
 app.config['UPLOAD_FOLDER'].mkdir(parents=True, exist_ok=True)
 app.config['PROCESSED_FOLDER'].mkdir(parents=True, exist_ok=True)
 
+# Initialize rate limiter for DoS protection
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
 # Store processing results in memory (in production, use Redis or database)
 processing_results = {}
+processing_results_lock = Lock()
+
+# Session configuration
+SESSION_TTL = 3600  # 1 hour in seconds
+
+# Per-session locks to prevent concurrent processing
+session_locks = {}
+session_locks_lock = Lock()
+
+
+def get_session_lock(session_id):
+    """Get or create a lock for the given session."""
+    with session_locks_lock:
+        if session_id not in session_locks:
+            session_locks[session_id] = Lock()
+        return session_locks[session_id]
+
+
+def cleanup_old_sessions():
+    """Remove sessions older than TTL and their associated files."""
+    with processing_results_lock:
+        current_time = time.time()
+        expired_sessions = [
+            session_id for session_id, data in processing_results.items()
+            if current_time - data.get('created_at', 0) > SESSION_TTL
+        ]
+
+        for session_id in expired_sessions:
+            data = processing_results[session_id]
+
+            # Delete uploaded file
+            if 'upload_path' in data:
+                upload_path = Path(data['upload_path'])
+                if upload_path.exists():
+                    upload_path.unlink(missing_ok=True)
+
+            # Delete processed file
+            if 'processed_path' in data:
+                processed_path = Path(data['processed_path'])
+                if processed_path.exists():
+                    processed_path.unlink(missing_ok=True)
+
+            # Remove from dict
+            del processing_results[session_id]
+
+        if expired_sessions:
+            print(f"🧹 Cleaned up {len(expired_sessions)} expired sessions")
+
+
+@app.after_request
+def after_request_cleanup(response):
+    """Clean up old sessions after each request."""
+    cleanup_old_sessions()
+    return response
 
 
 def allowed_file(filename):
@@ -42,6 +108,7 @@ def index():
 
 
 @app.route('/upload', methods=['POST'])
+@limiter.limit("10 per minute")
 def upload_file():
     """Handle file upload and initial validation."""
     if 'file' not in request.files:
@@ -89,13 +156,14 @@ def upload_file():
         upload_path = app.config['UPLOAD_FOLDER'] / f"{session_id}_{filename}"
         df.to_excel(str(upload_path), index=False)
 
-        # Store session info
+        # Store session info with timestamp for cleanup
         processing_results[session_id] = {
             'filename': filename,
             'upload_path': str(upload_path),
             'map_column': map_column,
             'total_rows': len(df),
-            'status': 'uploaded'
+            'status': 'uploaded',
+            'created_at': time.time()  # Add timestamp for TTL cleanup
         }
 
         return jsonify({
@@ -112,17 +180,22 @@ def upload_file():
 
 
 @app.route('/process/<session_id>', methods=['POST'])
+@limiter.limit("5 per minute")
 def process_file(session_id):
     """Process the uploaded file and extract coordinates."""
     if session_id not in processing_results:
         return jsonify({'error': 'Invalid session ID'}), 400
 
-    session_info = processing_results[session_id]
+    # Get session lock to prevent concurrent processing
+    session_lock = get_session_lock(session_id)
 
-    if session_info['status'] == 'processing':
+    # Try to acquire lock (non-blocking) - if already locked, return error
+    if not session_lock.acquire(blocking=False):
         return jsonify({'error': 'File is already being processed'}), 400
 
     try:
+        session_info = processing_results[session_id]
+
         # Mark as processing
         session_info['status'] = 'processing'
 
@@ -213,6 +286,9 @@ def process_file(session_id):
     except Exception as e:
         session_info['status'] = 'error'
         return jsonify({'error': f'Error processing file: {str(e)}'}), 500
+    finally:
+        # Always release the lock
+        session_lock.release()
 
 
 @app.route('/download/<session_id>')

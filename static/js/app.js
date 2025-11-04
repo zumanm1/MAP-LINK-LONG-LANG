@@ -156,6 +156,12 @@ async function handleProcess() {
             throw new Error(data.error || 'Processing failed');
         }
 
+        // Clear progress interval immediately
+        if (window.progressInterval) {
+            clearInterval(window.progressInterval);
+            window.progressInterval = null;
+        }
+
         // Complete progress
         progressFill.style.width = '100%';
         progressText.textContent = 'Processing complete!';
@@ -163,12 +169,16 @@ async function handleProcess() {
         // Show success message
         showSuccess(`✅ Processing complete! Successfully processed ${data.successful}/${data.total_rows} rows`);
 
-        // Show warning if there were failures or skipped rows
+        // Show combined warnings if there were failures or skipped rows
+        const warnings = [];
         if (data.failed > 0) {
-            showWarning(`⚠️ Failed to extract coordinates for ${data.failed} rows`);
+            warnings.push(`⚠️ Failed to extract coordinates for ${data.failed} rows`);
         }
         if (data.skipped > 0) {
-            showWarning(`ℹ️ Skipped ${data.skipped} rows with missing map links`);
+            warnings.push(`ℹ️ Skipped ${data.skipped} rows with missing map links`);
+        }
+        if (warnings.length > 0) {
+            showWarning(warnings.join('\n'));
         }
 
         // Display results
@@ -186,6 +196,11 @@ async function handleProcess() {
         }, 2000);
 
     } catch (error) {
+        // Clear progress interval on error
+        if (window.progressInterval) {
+            clearInterval(window.progressInterval);
+            window.progressInterval = null;
+        }
         showError(error.message);
         progressSection.style.display = 'none';
     } finally {
@@ -197,6 +212,12 @@ async function handleProcess() {
  * Simulate progress bar animation
  */
 function simulateProgress() {
+    // Clear any existing interval first to prevent memory leaks
+    if (window.progressInterval) {
+        clearInterval(window.progressInterval);
+        window.progressInterval = null;
+    }
+
     let progress = 0;
     const interval = setInterval(() => {
         if (progress < 90) {

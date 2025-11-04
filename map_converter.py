@@ -78,9 +78,21 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
             # Determine which is lat and which is lng based on typical ranges
             # Latitude: -90 to 90, Longitude: -180 to 180
             if abs(coord1) <= 90 and abs(coord2) <= 180:
-                return coord2, coord1  # coord1 is lat, coord2 is lng
+                # coord1 is likely latitude
+                return coord2, coord1
             elif abs(coord2) <= 90 and abs(coord1) <= 180:
-                return coord1, coord2  # coord2 is lat, coord1 is lng
+                # coord2 is likely latitude
+                return coord1, coord2
+            elif abs(coord1) <= 90:
+                # Only coord1 fits latitude range, coord2 must be longitude
+                return coord2, coord1
+            elif abs(coord2) <= 90:
+                # Only coord2 fits latitude range, coord1 must be longitude
+                return coord1, coord2
+            else:
+                # Both > 90, can't determine order - assume first is lat, second is lng
+                # This handles edge cases like (120.0, 150.0) in Eastern Asia/Pacific
+                return coord2, coord1
         
         logger.warning(f"Could not extract coordinates from: {map_link}")
         return None, None
