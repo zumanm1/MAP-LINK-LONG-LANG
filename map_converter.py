@@ -176,27 +176,102 @@ def process_excel_file(input_file: str, output_file: str) -> None:
         # Get the actual Name column (case-insensitive)
         name_column = column_mapping.get('name', 'Name')
 
-        # Process each row
-        logger.info(f"Processing {len(df)} rows...")
+        # Add Comments column if it doesn't exist
+        if 'Comments' not in df.columns:
+            df['Comments'] = None
+
+        total_rows = len(df)
+        logger.info(f"{'='*60}")
+        logger.info(f"🚀 Starting processing: {total_rows} rows")
+        logger.info(f"{'='*60}")
+
+        # Process each row with retry logic
         for idx, row in df.iterrows():
             map_link = row[map_column]
             row_name = row.get(name_column, f"Row {idx + 1}")
 
+            # Calculate and display progress
+            progress = ((idx + 1) / total_rows) * 100
+            logger.info(f"📍 Processing row {idx + 1}/{total_rows} ({progress:.1f}%) - {row_name}")
+
             # Skip rows with missing or empty map links (blank output)
             if pd.isna(map_link) or str(map_link).strip() == '':
-                logger.warning(f"Row {idx + 1} ({row_name}): No map link provided")
+                df.at[idx, 'Comments'] = 'Skipped: No map link provided'
+                logger.warning(f"   ⏭️  Skipped: No map link provided")
                 # LONG and LATTs remain blank (NaN) - no modification
                 continue
 
-            # Process rows with map links
-            lng, lat = extract_coordinates_from_url(str(map_link))
+            # Retry logic: Try up to 3 times with 2 second delay
+            MAX_ATTEMPTS = 3
+            RETRY_DELAY = 2
+            URL_TIMEOUT = 120  # 2 minutes timeout per attempt
+            lng, lat = None, None
+            last_error = None
+
+            import time
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError("URL processing timeout after 2 minutes")
+
+            for attempt in range(1, MAX_ATTEMPTS + 1):
+                logger.info(f"   🔄 Attempt {attempt}/{MAX_ATTEMPTS}: Extracting coordinates...")
+
+                try:
+                    # Set timeout for URL processing (2 minutes)
+                    if hasattr(signal, 'SIGALRM'):  # Unix/Linux/Mac only
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(URL_TIMEOUT)
+
+                    lng, lat = extract_coordinates_from_url(str(map_link))
+
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancel alarm
+
+                    if lng is not None and lat is not None:
+                        logger.info(f"   ✅ Success on attempt {attempt}: Lng={lng:.4f}, Lat={lat:.4f}")
+                        break
+                    else:
+                        last_error = "Could not extract coordinates from URL"
+                        logger.warning(f"   ⚠️  Attempt {attempt} failed: {last_error}")
+
+                        if attempt < MAX_ATTEMPTS:
+                            logger.info(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                            time.sleep(RETRY_DELAY)
+
+                except TimeoutError as e:
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancel alarm
+                    last_error = "Timeout: URL took longer than 2 minutes to process"
+                    logger.error(f"   ⏱️  Attempt {attempt} timeout: {last_error}")
+
+                    if attempt < MAX_ATTEMPTS:
+                        logger.info(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                        time.sleep(RETRY_DELAY)
+
+                except Exception as e:
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancel alarm
+                    last_error = str(e)
+                    logger.error(f"   ❌ Attempt {attempt} error: {last_error}")
+
+                    if attempt < MAX_ATTEMPTS:
+                        logger.info(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                        time.sleep(RETRY_DELAY)
+
+            # Record results
             if lng is not None and lat is not None:
                 df.at[idx, long_column] = lng
                 df.at[idx, lat_column] = lat
+                df.at[idx, 'Comments'] = 'Success'
                 logger.info(f"Row {idx + 1} ({row_name}): Extracted coordinates - Lng: {lng}, Lat: {lat}")
             else:
-                logger.warning(f"Row {idx + 1} ({row_name}): Failed to extract coordinates")
+                comment = f"Failed after {MAX_ATTEMPTS} attempts: {last_error}"
+                df.at[idx, 'Comments'] = comment
+                logger.warning(f"   ❌ Failed after {MAX_ATTEMPTS} attempts")
                 # LONG and LATTs remain blank (NaN) - no modification
+
+            logger.info("")  # Blank line between rows
         
         # Save to output file
         logger.info(f"Saving output file: {output_file}")

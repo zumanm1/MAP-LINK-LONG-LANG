@@ -275,28 +275,102 @@ def process_file(session_id):
         skipped = 0
         processing_log = []
 
-        # Process each row
+        # Add Comments column if it doesn't exist
+        if 'Comments' not in df.columns:
+            df['Comments'] = None
+
+        total_rows = len(df)
+        print(f"\n{'='*60}")
+        print(f"🚀 Starting processing: {total_rows} rows")
+        print(f"{'='*60}\n")
+
+        # Process each row with retry logic
         for idx, row in df.iterrows():
             map_link = row[map_column]
             # Handle NaN in Name column - convert to None for JSON serialization
             row_name = None if pd.isna(row['Name']) else row['Name']
+            row_display = row_name if row_name else f"Row {idx + 1}"
+
+            # Calculate and display progress
+            progress = ((idx + 1) / total_rows) * 100
+            print(f"📍 Processing row {idx + 1}/{total_rows} ({progress:.1f}%) - {row_display}")
 
             # Skip rows with missing map links (don't process)
             if pd.isna(map_link) or str(map_link).strip() == '':
                 skipped += 1
+                df.at[idx, 'Comments'] = 'Skipped: No map link provided'
+                print(f"   ⏭️  Skipped: No map link provided")
                 processing_log.append({
                     'row': idx + 1,
                     'name': row_name,
                     'status': 'skipped',
-                    'reason': 'No map link provided'
+                    'reason': 'No map link provided',
+                    'progress': progress
                 })
                 continue
 
-            # Process rows with map links
-            lng, lat = extract_coordinates_from_url(str(map_link))
+            # Retry logic: Try up to 3 times with 2 second delay
+            MAX_ATTEMPTS = 3
+            RETRY_DELAY = 2
+            URL_TIMEOUT = 120  # 2 minutes timeout per attempt
+            lng, lat = None, None
+            last_error = None
+
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError("URL processing timeout after 2 minutes")
+
+            for attempt in range(1, MAX_ATTEMPTS + 1):
+                print(f"   🔄 Attempt {attempt}/{MAX_ATTEMPTS}: Extracting coordinates...")
+
+                try:
+                    # Set timeout for URL processing (2 minutes)
+                    if hasattr(signal, 'SIGALRM'):  # Unix/Linux/Mac only
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(URL_TIMEOUT)
+
+                    lng, lat = extract_coordinates_from_url(str(map_link))
+
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancel alarm
+
+                    if lng is not None and lat is not None:
+                        print(f"   ✅ Success on attempt {attempt}: Lng={lng:.4f}, Lat={lat:.4f}")
+                        break
+                    else:
+                        last_error = "Could not extract coordinates from URL"
+                        print(f"   ⚠️  Attempt {attempt} failed: {last_error}")
+
+                        if attempt < MAX_ATTEMPTS:
+                            print(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                            time.sleep(RETRY_DELAY)
+
+                except TimeoutError as e:
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancel alarm
+                    last_error = "Timeout: URL took longer than 2 minutes to process"
+                    print(f"   ⏱️  Attempt {attempt} timeout: {last_error}")
+
+                    if attempt < MAX_ATTEMPTS:
+                        print(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                        time.sleep(RETRY_DELAY)
+
+                except Exception as e:
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancel alarm
+                    last_error = str(e)
+                    print(f"   ❌ Attempt {attempt} error: {last_error}")
+
+                    if attempt < MAX_ATTEMPTS:
+                        print(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                        time.sleep(RETRY_DELAY)
+
+            # Record results
             if lng is not None and lat is not None:
                 df.at[idx, long_column] = lng
                 df.at[idx, lat_column] = lat
+                df.at[idx, 'Comments'] = 'Success'
                 successful += 1
                 processing_log.append({
                     'row': idx + 1,
@@ -304,17 +378,34 @@ def process_file(session_id):
                     'status': 'success',
                     'lng': lng,
                     'lat': lat,
-                    'map_link': str(map_link)[:50] + '...' if len(str(map_link)) > 50 else str(map_link)
+                    'attempts': attempt,
+                    'map_link': str(map_link)[:50] + '...' if len(str(map_link)) > 50 else str(map_link),
+                    'progress': progress
                 })
             else:
                 failed += 1
+                comment = f"Failed after {MAX_ATTEMPTS} attempts: {last_error}"
+                df.at[idx, 'Comments'] = comment
+                print(f"   ❌ Failed after {MAX_ATTEMPTS} attempts")
                 processing_log.append({
                     'row': idx + 1,
                     'name': row_name,
                     'status': 'failed',
-                    'reason': 'Could not extract coordinates from URL',
-                    'map_link': str(map_link)[:50] + '...' if len(str(map_link)) > 50 else str(map_link)
+                    'reason': last_error,
+                    'attempts': MAX_ATTEMPTS,
+                    'map_link': str(map_link)[:50] + '...' if len(str(map_link)) > 50 else str(map_link),
+                    'progress': progress
                 })
+
+            print()  # Blank line between rows
+
+        print(f"{'='*60}")
+        print(f"✅ Processing complete!")
+        print(f"   Total: {total_rows} rows")
+        print(f"   ✅ Successful: {successful}")
+        print(f"   ❌ Failed: {failed}")
+        print(f"   ⏭️  Skipped: {skipped}")
+        print(f"{'='*60}\n")
 
         # Save processed file (cross-platform path)
         output_filename = f"processed_{session_info['filename']}"
