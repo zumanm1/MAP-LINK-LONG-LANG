@@ -200,9 +200,13 @@ def method3_html_scraping(map_link: str, timeout=15) -> Tuple[Optional[float], O
         return None, None
 
 
-def method4_google_maps_api(map_link: str, api_key: Optional[str] = None) -> Tuple[Optional[float], Optional[float]]:
+def method4_google_places_api(map_link: str, api_key: Optional[str] = None) -> Tuple[Optional[float], Optional[float]]:
     """
-    METHOD 4: Use Google Maps Geocoding API or Place ID lookup
+    METHOD 4: Use Google Places API Text Search (Recommended & Free Tier)
+
+    Best for: Place names, addresses, and general queries
+    Free tier: 1,000 requests/day
+    API: https://maps.googleapis.com/maps/api/place/textsearch/json
 
     Note: Requires GOOGLE_MAPS_API_KEY environment variable
     Falls back gracefully if not available
@@ -216,32 +220,65 @@ def method4_google_maps_api(map_link: str, api_key: Optional[str] = None) -> Tup
             logger.debug("Method 4: Skipped (no API key)")
             return None, None
 
-        logger.info(f"🗺️  Method 4: Using Google Maps API...")
+        logger.info(f"🗺️  Method 4: Using Google Places API Text Search...")
 
-        # Extract place ID if present
-        place_id_match = re.search(r'place/([^/]+)/', map_link)
-        if place_id_match:
-            place_name = place_id_match.group(1)
-            place_name = unquote(place_name).replace('+', ' ')
+        # Extract query from URL
+        query = None
 
-            # Use Geocoding API
-            geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json"
-            params = {
-                'address': place_name,
-                'key': api_key
-            }
+        # Try to extract from query= parameter (place name searches)
+        query_match = re.search(r'[?&]query=([^&]+)', map_link)
+        if query_match:
+            query = unquote(query_match.group(1)).replace('+', ' ')
+            # Skip if it's coordinates (already handled by Method 1)
+            if re.match(r'^-?\d+\.?\d*,-?\d+\.?\d*$', query):
+                logger.debug("Method 4: Skipped (query contains coordinates, already extracted)")
+                return None, None
 
-            response = requests.get(geocode_url, params=params, timeout=10)
-            data = response.json()
+        # Try to extract from place name in URL
+        if not query:
+            place_match = re.search(r'/place/([^/@]+)', map_link)
+            if place_match:
+                query = unquote(place_match.group(1)).replace('+', ' ')
 
-            if data.get('status') == 'OK' and data.get('results'):
-                location = data['results'][0]['geometry']['location']
-                lat = location['lat']
-                lng = location['lng']
-                logger.info(f"✅ Method 4: Found coordinates via API: {lat},{lng}")
-                return validate_coordinates(lng, lat)
+        # Try to extract from search term
+        if not query:
+            search_match = re.search(r'/search/([^/@]+)', map_link)
+            if search_match:
+                query = unquote(search_match.group(1)).replace('+', ' ')
 
-        return None, None
+        if not query:
+            logger.debug("Method 4: No place name found in URL")
+            return None, None
+
+        logger.info(f"   🔍 Searching for: '{query}'")
+
+        # Use Google Places API Text Search
+        places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+        params = {
+            'query': query,
+            'key': api_key
+        }
+
+        response = requests.get(places_url, params=params, timeout=10)
+        data = response.json()
+
+        if data.get('status') == 'OK' and data.get('results'):
+            result = data['results'][0]
+            location = result['geometry']['location']
+            lat = location['lat']
+            lng = location['lng']
+            place_id = result.get('place_id', 'N/A')
+            place_name = result.get('name', query)
+
+            logger.info(f"✅ Method 4: Found '{place_name}' (place_id: {place_id[:20]}...)")
+            logger.info(f"   Coordinates: {lat},{lng}")
+            return validate_coordinates(lng, lat)
+        elif data.get('status') == 'ZERO_RESULTS':
+            logger.warning(f"Method 4: No results found for '{query}'")
+            return None, None
+        else:
+            logger.warning(f"Method 4: API returned status: {data.get('status')}")
+            return None, None
 
     except Exception as e:
         logger.debug(f"Method 4 failed: {str(e)}")
@@ -256,7 +293,7 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
     1. Direct regex extraction (fast, covers 95% of cases)
     2. URL resolution for shortened/regional URLs
     3. HTML scraping when regex fails
-    4. Google Maps API as last resort (requires API key)
+    4. Google Places API Text Search (requires API key, free tier 1000/day)
 
     Returns:
         Tuple of (longitude, latitude) or (None, None) if all methods fail
@@ -284,10 +321,10 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
         logger.info(f"✅ Success with Method 3 (HTML Scraping): {lng:.6f}, {lat:.6f}")
         return lng, lat
 
-    # METHOD 4: Google Maps API (requires API key)
-    lng, lat = method4_google_maps_api(map_link)
+    # METHOD 4: Google Places API Text Search (requires API key)
+    lng, lat = method4_google_places_api(map_link)
     if lng is not None and lat is not None:
-        logger.info(f"✅ Success with Method 4 (Google API): {lng:.6f}, {lat:.6f}")
+        logger.info(f"✅ Success with Method 4 (Google Places API): {lng:.6f}, {lat:.6f}")
         return lng, lat
 
     logger.warning(f"❌ All 4 methods failed to extract coordinates from: {map_link[:80]}...")
