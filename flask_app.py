@@ -19,6 +19,7 @@ from pathlib import Path
 from threading import Lock
 from werkzeug.utils import secure_filename
 from map_converter import extract_coordinates_from_url
+from map_converter_parallel import extract_coordinates_parallel
 
 # Configure logging
 logging.basicConfig(
@@ -331,34 +332,27 @@ def process_file(session_id):
                 })
                 continue
 
-            # Retry logic: Try up to 3 times with 2 second delay
+            # Use parallel extraction with timeout (BUG FIX: Works in Flask threads)
             MAX_ATTEMPTS = 3
             RETRY_DELAY = 2
-            URL_TIMEOUT = 180  # 3 minutes timeout per attempt (REDUCED to prevent getting stuck)
             lng, lat = None, None
             last_error = None
-
-            import signal
-
-            def timeout_handler(signum, frame):
-                raise TimeoutError("URL processing timeout after 2 minutes")
 
             for attempt in range(1, MAX_ATTEMPTS + 1):
                 print(f"   🔄 Attempt {attempt}/{MAX_ATTEMPTS}: Extracting coordinates...")
 
                 try:
-                    # Set timeout for URL processing (2 minutes)
-                    if hasattr(signal, 'SIGALRM'):  # Unix/Linux/Mac only
-                        signal.signal(signal.SIGALRM, timeout_handler)
-                        signal.alarm(URL_TIMEOUT)
+                    # Use parallel extraction (has built-in timeout, works in threads)
+                    results = extract_coordinates_parallel(str(map_link))
 
-                    lng, lat = extract_coordinates_from_url(str(map_link))
-
-                    if hasattr(signal, 'SIGALRM'):
-                        signal.alarm(0)  # Cancel alarm
+                    # Try to get coordinates from any successful method
+                    for method_name, (method_lng, method_lat) in results.items():
+                        if method_lng is not None and method_lat is not None:
+                            lng, lat = method_lng, method_lat
+                            print(f"   ✅ Success on attempt {attempt} ({method_name}): Lng={lng:.4f}, Lat={lat:.4f}")
+                            break
 
                     if lng is not None and lat is not None:
-                        print(f"   ✅ Success on attempt {attempt}: Lng={lng:.4f}, Lat={lat:.4f}")
                         break
                     else:
                         last_error = "Could not extract coordinates from URL"
@@ -524,4 +518,4 @@ def health():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5006)
