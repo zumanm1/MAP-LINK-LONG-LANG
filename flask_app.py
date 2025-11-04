@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, jsonify, send_file, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import pandas as pd
+import numpy as np
 import io
 import os
 import uuid
@@ -171,7 +172,8 @@ def upload_file():
             }), 400
 
         # Store original data for preview
-        preview_data = df.head(10).to_dict('records')
+        # Replace NaN with None for valid JSON serialization
+        preview_data = df.head(10).replace({np.nan: None}).to_dict('records')
         preview_columns = df.columns.tolist()
 
         # Save the full dataframe for processing (cross-platform path)
@@ -269,13 +271,15 @@ def process_file(session_id):
         # Process each row
         for idx, row in df.iterrows():
             map_link = row[map_column]
+            # Handle NaN in Name column - convert to None for JSON serialization
+            row_name = None if pd.isna(row['Name']) else row['Name']
 
             # Skip rows with missing map links (don't process)
             if pd.isna(map_link) or str(map_link).strip() == '':
                 skipped += 1
                 processing_log.append({
                     'row': idx + 1,
-                    'name': row['Name'],
+                    'name': row_name,
                     'status': 'skipped',
                     'reason': 'No map link provided'
                 })
@@ -289,7 +293,7 @@ def process_file(session_id):
                 successful += 1
                 processing_log.append({
                     'row': idx + 1,
-                    'name': row['Name'],
+                    'name': row_name,
                     'status': 'success',
                     'lng': lng,
                     'lat': lat,
@@ -299,7 +303,7 @@ def process_file(session_id):
                 failed += 1
                 processing_log.append({
                     'row': idx + 1,
-                    'name': row['Name'],
+                    'name': row_name,
                     'status': 'failed',
                     'reason': 'Could not extract coordinates from URL',
                     'map_link': str(map_link)[:50] + '...' if len(str(map_link)) > 50 else str(map_link)
@@ -322,7 +326,8 @@ def process_file(session_id):
         session_info['failed'] = failed
         session_info['skipped'] = skipped
         session_info['processing_log'] = processing_log
-        session_info['processed_data'] = df.to_dict('records')
+        # Replace NaN with None for valid JSON serialization
+        session_info['processed_data'] = df.replace({np.nan: None}).to_dict('records')
         session_info['processed_columns'] = df.columns.tolist()
 
         return jsonify({
