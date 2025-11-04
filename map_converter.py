@@ -242,29 +242,51 @@ def process_excel_file(input_file: str, output_file: str) -> None:
             # Retry logic: Try up to 3 times with 2 second delay
             MAX_ATTEMPTS = 3
             RETRY_DELAY = 2
-            URL_TIMEOUT = 180  # 3 minutes timeout per attempt (REDUCED to prevent getting stuck)
+            URL_TIMEOUT = 180  # 3 minutes timeout per attempt
             lng, lat = None, None
             last_error = None
 
             import time
-            import signal
+            import threading
 
-            def timeout_handler(signum, frame):
-                raise TimeoutError("URL processing timeout after 2 minutes")
+            def extract_with_timeout(url, timeout):
+                """Cross-platform timeout wrapper using threading."""
+                result = {'lng': None, 'lat': None, 'error': None}
+
+                def worker():
+                    try:
+                        result['lng'], result['lat'] = extract_coordinates_from_url(url)
+                    except Exception as e:
+                        result['error'] = str(e)
+
+                thread = threading.Thread(target=worker)
+                thread.daemon = True
+                thread.start()
+                thread.join(timeout=timeout)
+
+                if thread.is_alive():
+                    # Thread still running = timeout
+                    result['error'] = f"Timeout: URL took longer than {timeout} seconds to process"
+
+                return result['lng'], result['lat'], result['error']
 
             for attempt in range(1, MAX_ATTEMPTS + 1):
                 logger.info(f"   🔄 Attempt {attempt}/{MAX_ATTEMPTS}: Extracting coordinates...")
 
                 try:
-                    # Set timeout for URL processing (2 minutes)
-                    if hasattr(signal, 'SIGALRM'):  # Unix/Linux/Mac only
-                        signal.signal(signal.SIGALRM, timeout_handler)
-                        signal.alarm(URL_TIMEOUT)
+                    lng, lat, error = extract_with_timeout(str(map_link), URL_TIMEOUT)
 
-                    lng, lat = extract_coordinates_from_url(str(map_link))
+                    if error:
+                        last_error = error
+                        if "Timeout" in error:
+                            logger.error(f"   ⏱️  Attempt {attempt} timeout: {last_error}")
+                        else:
+                            logger.error(f"   ❌ Attempt {attempt} error: {last_error}")
 
-                    if hasattr(signal, 'SIGALRM'):
-                        signal.alarm(0)  # Cancel alarm
+                        if attempt < MAX_ATTEMPTS:
+                            logger.info(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
+                            time.sleep(RETRY_DELAY)
+                        continue
 
                     if lng is not None and lat is not None:
                         logger.info(f"   ✅ Success on attempt {attempt}: Lng={lng:.4f}, Lat={lat:.4f}")
@@ -277,19 +299,7 @@ def process_excel_file(input_file: str, output_file: str) -> None:
                             logger.info(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
                             time.sleep(RETRY_DELAY)
 
-                except TimeoutError as e:
-                    if hasattr(signal, 'SIGALRM'):
-                        signal.alarm(0)  # Cancel alarm
-                    last_error = "Timeout: URL took longer than 2 minutes to process"
-                    logger.error(f"   ⏱️  Attempt {attempt} timeout: {last_error}")
-
-                    if attempt < MAX_ATTEMPTS:
-                        logger.info(f"   ⏳ Waiting {RETRY_DELAY} seconds before retry...")
-                        time.sleep(RETRY_DELAY)
-
                 except Exception as e:
-                    if hasattr(signal, 'SIGALRM'):
-                        signal.alarm(0)  # Cancel alarm
                     last_error = str(e)
                     logger.error(f"   ❌ Attempt {attempt} error: {last_error}")
 

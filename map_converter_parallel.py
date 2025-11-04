@@ -198,8 +198,8 @@ def method5_selenium_scraping(map_link: str, timeout=20) -> Tuple[Optional[float
     try:
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.chrome.service import Service
+        from webdriver_manager.chrome import ChromeDriverManager
 
         chrome_options = Options()
         chrome_options.add_argument('--headless')
@@ -208,7 +208,9 @@ def method5_selenium_scraping(map_link: str, timeout=20) -> Tuple[Optional[float
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
 
-        driver = webdriver.Chrome(options=chrome_options)
+        # Auto-install ChromeDriver
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
 
         try:
             driver.get(map_link)
