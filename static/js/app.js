@@ -3,31 +3,45 @@
  * Handles file upload, processing, and UI interactions
  */
 
-// Global state
-let currentSessionId = null;
-let uploadedFile = null;
+// BUG FIX #7: Wrap all initialization in DOMContentLoaded to ensure DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Global state
+    let currentSessionId = null;
+    let uploadedFile = null;
 
-// DOM Elements
-const fileInput = document.getElementById('fileInput');
-const uploadBtn = document.getElementById('uploadBtn');
-const fileName = document.getElementById('fileName');
-const errorMessage = document.getElementById('errorMessage');
-const previewSection = document.getElementById('previewSection');
-const processBtn = document.getElementById('processBtn');
-const progressSection = document.getElementById('progressSection');
-const progressFill = document.getElementById('progressFill');
-const progressText = document.getElementById('progressText');
-const successMessage = document.getElementById('successMessage');
-const warningMessage = document.getElementById('warningMessage');
-const resultsSection = document.getElementById('resultsSection');
-const downloadBtn = document.getElementById('downloadBtn');
-const instructionsSection = document.getElementById('instructionsSection');
+    // DOM Elements
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileName = document.getElementById('fileName');
+    const errorMessage = document.getElementById('errorMessage');
+    const previewSection = document.getElementById('previewSection');
+    const processBtn = document.getElementById('processBtn');
+    const progressSection = document.getElementById('progressSection');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const successMessage = document.getElementById('successMessage');
+    const warningMessage = document.getElementById('warningMessage');
+    const resultsSection = document.getElementById('resultsSection');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const instructionsSection = document.getElementById('instructionsSection');
 
-// Event Listeners
-uploadBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', handleFileSelect);
-processBtn.addEventListener('click', handleProcess);
-downloadBtn.addEventListener('click', handleDownload);
+    // BUG FIX #7: Check if all required elements exist before attaching listeners
+    if (!fileInput || !uploadBtn || !processBtn || !downloadBtn) {
+        console.error('❌ CRITICAL: Required DOM elements not found');
+        console.error('Missing elements:', {
+            fileInput: !!fileInput,
+            uploadBtn: !!uploadBtn,
+            processBtn: !!processBtn,
+            downloadBtn: !!downloadBtn
+        });
+        return;
+    }
+
+    // Event Listeners
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+    processBtn.addEventListener('click', handleProcess);
+    downloadBtn.addEventListener('click', handleDownload);
 
 /**
  * Handle file selection
@@ -473,11 +487,13 @@ function resetUploadButton() {
     uploadedFile = null;
 }
 
-/**
- * Clear progress interval on page unload
- */
-window.addEventListener('beforeunload', () => {
-    if (window.progressInterval) {
-        clearInterval(window.progressInterval);
-    }
-});
+    /**
+     * Clear progress interval on page unload
+     */
+    window.addEventListener('beforeunload', () => {
+        if (window.progressInterval) {
+            clearInterval(window.progressInterval);
+        }
+    });
+
+}); // BUG FIX #7: Close DOMContentLoaded event listener

@@ -45,30 +45,31 @@ def method1_regex_extraction(map_link: str) -> Tuple[Optional[float], Optional[f
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 2: @lat,lng,zoom format
-        pattern2 = r'@(-?\d+\.\d+),(-?\d+\.\d+),?\d*z?'
+        # BUG FIX #9: Make decimal points optional to support integer coordinates
+        # Pattern 2: @lat,lng,zoom format (supports @40,74,12z and @40.123,74.456,12z)
+        pattern2 = r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),?\d*z?'
         match = re.search(pattern2, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 3: q=lat,lng format
-        pattern3 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
+        # Pattern 3: q=lat,lng format (supports q=40,74 and q=40.123,74.456)
+        pattern3 = r'[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)'
         match = re.search(pattern3, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 4: /place/.../@lat,lng
-        pattern4 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
+        # Pattern 4: /place/.../@lat,lng (supports integer and decimal)
+        pattern4 = r'/place/[^/]+/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)'
         match = re.search(pattern4, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 5: Direct coordinate pair (with URL decoding)
+        # Pattern 5: Direct coordinate pair (supports integer and decimal)
         decoded_link = unquote(map_link)
-        pattern5 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
+        pattern5 = r'(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)'
         match = re.search(pattern5, decoded_link)
         if match:
             coord1, coord2 = float(match.group(1)), float(match.group(2))
@@ -199,6 +200,7 @@ def method5_selenium_scraping(map_link: str, timeout=20) -> Tuple[Optional[float
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
         from selenium.webdriver.chrome.service import Service
+        from selenium.common.exceptions import TimeoutException as SeleniumTimeoutException
         from webdriver_manager.chrome import ChromeDriverManager
 
         chrome_options = Options()
@@ -212,6 +214,10 @@ def method5_selenium_scraping(map_link: str, timeout=20) -> Tuple[Optional[float
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
+        # BUG FIX #2: Add page load timeout to prevent infinite hangs
+        driver.set_page_load_timeout(15)  # 15 second max page load
+        driver.set_script_timeout(10)     # 10 second max script execution
+
         try:
             driver.get(map_link)
             time.sleep(5)  # Wait for redirect and page load
@@ -222,7 +228,8 @@ def method5_selenium_scraping(map_link: str, timeout=20) -> Tuple[Optional[float
 
             if match:
                 lat, lng = float(match.group(1)), float(match.group(2))
-                return validate_coordinates(lng, lat)
+                result = validate_coordinates(lng, lat)
+                return result
 
             # Try to extract from page source
             page_source = driver.page_source
@@ -230,11 +237,17 @@ def method5_selenium_scraping(map_link: str, timeout=20) -> Tuple[Optional[float
 
             if match:
                 lat, lng = float(match.group(1)), float(match.group(2))
-                return validate_coordinates(lng, lat)
+                result = validate_coordinates(lng, lat)
+                return result
 
             return None, None
 
+        except SeleniumTimeoutException:
+            # BUG FIX #2: Handle page load timeout gracefully
+            logger.debug(f"Selenium page load timeout for {map_link}")
+            return None, None
         finally:
+            # BUG FIX #6: Ensure driver.quit() always runs (no early returns above)
             driver.quit()
 
     except Exception as e:
@@ -270,17 +283,31 @@ def extract_coordinates_parallel(map_link: str) -> Dict[str, Tuple[Optional[floa
         'method5': lambda: method5_selenium_scraping(map_link),
     }
 
-    # Run all methods in parallel
+    # Run all methods in parallel with timeout protection
     with ThreadPoolExecutor(max_workers=5) as executor:
         future_to_method = {executor.submit(func): name for name, func in methods.items()}
 
-        for future in as_completed(future_to_method):
-            method_name = future_to_method[future]
-            try:
-                results[method_name] = future.result()
-            except Exception as e:
-                logger.debug(f"{method_name} raised exception: {str(e)}")
-                results[method_name] = (None, None)
+        try:
+            # BUG FIX #1: Add timeout to as_completed (20s max wait for all methods)
+            for future in as_completed(future_to_method, timeout=20):
+                method_name = future_to_method[future]
+                try:
+                    # BUG FIX #1: Add timeout to future.result (5s per method)
+                    results[method_name] = future.result(timeout=5)
+                except TimeoutError:
+                    logger.debug(f"{method_name} timed out after 5 seconds")
+                    results[method_name] = (None, None)
+                except Exception as e:
+                    logger.debug(f"{method_name} raised exception: {str(e)}")
+                    results[method_name] = (None, None)
+        except TimeoutError:
+            # as_completed() timed out - some methods still running
+            logger.warning("Parallel extraction timed out after 20 seconds")
+            for future, name in future_to_method.items():
+                if not future.done():
+                    logger.debug(f"{name} did not complete in time")
+                    if name not in results or results[name] == (None, None):
+                        results[name] = (None, None)
 
     return results
 

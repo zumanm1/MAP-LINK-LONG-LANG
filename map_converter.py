@@ -83,33 +83,34 @@ def extract_coordinates_from_url(map_link: str) -> Tuple[Optional[float], Option
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 2: @lat,lng format
-        pattern2 = r'@(-?\d+\.\d+),(-?\d+\.\d+)'
+        # BUG FIX #9: Make decimal points optional to support integer coordinates
+        # Pattern 2: @lat,lng format (supports @40,74 and @40.123,74.456)
+        pattern2 = r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)'
         match = re.search(pattern2, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 3: q=lat,lng format
-        pattern3 = r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)'
+        # Pattern 3: q=lat,lng format (supports q=40,74 and q=40.123,74.456)
+        pattern3 = r'[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)'
         match = re.search(pattern3, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 4: /maps/place/.../@lat,lng
-        pattern4 = r'/place/[^/]+/@(-?\d+\.\d+),(-?\d+\.\d+)'
+        # Pattern 4: /maps/place/.../@lat,lng (supports integer and decimal)
+        pattern4 = r'/place/[^/]+/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)'
         match = re.search(pattern4, map_link)
         if match:
             lat, lng = float(match.group(1)), float(match.group(2))
             return validate_coordinates(lng, lat)
 
-        # Pattern 5: Direct coordinate pair in URL (with or without URL encoding)
+        # Pattern 5: Direct coordinate pair in URL (supports integer and decimal)
         # First decode URL-encoded characters
         from urllib.parse import unquote
         decoded_link = unquote(map_link)
 
-        pattern5 = r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)'
+        pattern5 = r'(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)'
         match = re.search(pattern5, decoded_link)
         if match:
             coord1, coord2 = float(match.group(1)), float(match.group(2))

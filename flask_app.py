@@ -7,6 +7,7 @@ Converts map links in Excel files to longitude and latitude coordinates.
 from flask import Flask, render_template, request, jsonify, send_file, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_cors import CORS
 import pandas as pd
 import numpy as np
 import io
@@ -43,6 +44,16 @@ except PermissionError:
     print("⚠️  Warning: Could not create upload directories. They will be created when needed.")
 except Exception as e:
     print(f"⚠️  Warning: Directory creation issue: {e}")
+
+# BUG FIX #8: Add CORS support for cross-origin requests
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000", "http://127.0.0.1:8080"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Initialize rate limiter for DoS protection
 limiter = Limiter(
@@ -91,11 +102,11 @@ def cleanup_old_sessions():
                 if upload_path.exists():
                     upload_path.unlink(missing_ok=True)
 
-            # Delete processed file
-            if 'processed_path' in data:
-                processed_path = Path(data['processed_path'])
-                if processed_path.exists():
-                    processed_path.unlink(missing_ok=True)
+            # BUG FIX #4: Use 'output_path' to match what's stored in session_info (line 432)
+            if 'output_path' in data:
+                output_path = Path(data['output_path'])
+                if output_path.exists():
+                    output_path.unlink(missing_ok=True)
 
             # Remove from dict
             del processing_results[session_id]
@@ -251,7 +262,7 @@ def process_file(session_id):
 
         map_column = session_info['map_column']
 
-        # Determine longitude and latitude column names (case-insensitive, flexible)
+        # BUG FIX #3: Use case-insensitive column mapping for all columns
         column_mapping_lower = {col.lower(): col for col in df.columns}
 
         # Try to find existing Long column
@@ -278,6 +289,9 @@ def process_file(session_id):
             lat_column = 'LATTs'
             df[lat_column] = None
 
+        # BUG FIX #3: Get actual Name column with case-insensitive lookup
+        name_column = column_mapping_lower.get('name', 'Name')
+
         successful = 0
         failed = 0
         skipped = 0
@@ -295,8 +309,8 @@ def process_file(session_id):
         # Process each row with retry logic
         for idx, row in df.iterrows():
             map_link = row[map_column]
-            # Handle NaN in Name column - convert to None for JSON serialization
-            row_name = None if pd.isna(row['Name']) else row['Name']
+            # BUG FIX #3: Use name_column instead of hardcoded 'Name'
+            row_name = None if pd.isna(row[name_column]) else row[name_column]
             row_display = row_name if row_name else f"Row {idx + 1}"
 
             # Calculate and display progress
